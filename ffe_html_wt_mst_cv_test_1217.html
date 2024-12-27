@@ -1,0 +1,2423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFE Analysis Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 500px;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .main-content {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        .sidebar {
+            padding: 20px;
+            background: #f5f5f5;
+            overflow-y: auto;
+            border-left: 1px solid #ddd;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .selection-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .metric-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .metric-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .metric-value {
+            font-size: 1.5em;
+            color: #2c3e50;
+        }
+
+        .status {
+            margin-top: 10px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .status-good {
+            background: #a8e6cf;
+            color: #1b4332;
+        }
+
+        .status-warning {
+            background: #ffd3b6;
+            color: #7c3c21;
+        }
+
+        .status-low {
+            background: #ffcccc;
+            color: #ff0000;
+        }
+
+        .status-high {
+            background: #ffcc99;
+            color: #ff6600;
+        }
+
+        #map {
+            flex: 1;
+            border-radius: 8px;
+            margin: 0;
+        }
+
+        .button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background: #45a049;
+        }
+
+        .reset-button {
+            background: #f44336;
+        }
+
+        .reset-button:hover {
+            background: #da190b;
+        }
+
+        .history-item {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .history-timestamp {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+
+        .hospitals-list {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        .hospital-item {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        .selection-mode {
+            padding: 5px 10px;
+            background: #e0e0e0;
+            border-radius: 4px;
+        }
+
+        select {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        .mr-pos-stats {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .mr-pos-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .layer-control {
+            margin-right: 10px;
+        }
+        
+        .map-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .button.random-color {
+            background: #9c27b0;
+        }
+        
+        .button.random-color:hover {
+            background: #7b1fa2;
+        }
+
+        .context-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            padding: 5px 0;
+            z-index: 1000;
+        }
+
+        .context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+
+        .context-menu-item:hover {
+            background: #f0f0f0;
+        }
+
+        .context-menu select {
+            width: 100%;
+            margin: 5px 0;
+            padding: 5px;
+        }
+
+        .button.download-button {
+            background: #2196F3;
+        }
+        
+        .button.download-button:hover {
+            background: #1976D2;
+        }
+
+        .parameters-section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .parameter-group {
+            margin-bottom: 15px;
+        }
+
+        .parameter-group h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+
+        .parameter-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .parameter-label {
+            flex: 2;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .parameter-input {
+            flex: 1;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 80px;
+        }
+
+        .reset-params-button {
+            background: #ff9800;
+            margin-top: 10px;
+        }
+
+        .collapsible {
+            background-color: #f1f1f1;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+            border-radius: 4px 4px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .active, .collapsible:hover {
+            background-color: #e0e0e0;
+        }
+
+        .collapsible:after {
+            content: '\002B';
+            font-weight: bold;
+            float: right;
+            margin-left: 5px;
+        }
+
+        .active:after {
+            content: "\2212";
+        }
+
+        .parameter-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+            background-color: white;
+            border-radius: 0 0 4px 4px;
+        }
+
+        .parameter-content.show {
+            max-height: 1000px;
+            padding: 20px;
+        }
+
+        .collapsible-detail {
+            background: none;
+            border: none;
+            color: #2196F3;
+            cursor: pointer;
+            padding: 5px;
+            margin-left: 10px;
+            font-size: 0.9em;
+        }
+
+        .collapsible-detail:hover {
+            text-decoration: underline;
+        }
+
+        .detail-content {
+            display: none;
+            padding: 10px;
+            margin: 5px 0;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        .cross-city-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .cross-city-item:last-child {
+            border-bottom: none;
+        }
+
+        .cross-city-item span:first-child {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .parameters-section .collapsible {
+            background-color: #f1f1f1;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+            border-radius: 4px 4px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .parameters-section .parameter-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+            background-color: white;
+            border-radius: 0 0 4px 4px;
+        }
+
+        .parameters-section .parameter-content.show {
+            max-height: 1000px;
+            padding: 20px;
+        }
+
+        .detail-content {
+            display: none;
+            padding: 10px;
+            margin: 5px 0;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        /* 添加搜索选择框的样式 */
+        .select-search-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .select-search-container select {
+            width: 200px;
+            padding-right: 30px;
+        }
+
+        .select-search-container input {
+            width: 184px;
+            padding: 5px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 2px;
+        }
+
+        .select-search-container .options-container {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 200px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .select-search-container .option-item {
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        .select-search-container .option-item:hover {
+            background: #f0f0f0;
+        }
+
+        .control-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .control-item input[type="checkbox"] {
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <h1>FFE Analysis Dashboard</h1>
+            <div class="controls">
+                <input type="file" id="fileUpload" accept=".xlsx" />
+                <button class="button" onclick="processFile()">分析数据</button>
+                <button class="button reset-button" onclick="resetMap()">重置</button>
+                <button class="button random-color" onclick="randomizeColors()">随机颜色</button>
+                <button class="button download-button" onclick="downloadSpreadsheet()">下载数据</button>
+                <div class="selection-controls">
+                    <span id="selectionMode" class="selection-mode">选择模式: 框选</span>
+                    <!-- 添加 checkbox -->
+                    <label class="control-item">
+                        <input type="checkbox" id="showConvexHull" onchange="toggleConvexHull()">
+                        显示MR Pos覆盖区域
+                    </label>
+                    <div class="select-search-container" id="hospitalFilterContainer">
+                        <input type="text" placeholder="搜索医院..." id="hospitalSearch">
+                        <div class="options-container" id="hospitalOptions"></div>
+                    </div>
+                    <div class="select-search-container" id="mrPosFilterContainer">
+                        <input type="text" placeholder="搜索 MR Pos..." id="mrPosSearch">
+                        <div class="options-container" id="mrPosOptions"></div>
+                    </div>
+                    <div class="select-search-container" id="cityFilterContainer">
+                        <input type="text" placeholder="搜索城市..." id="citySearch">
+                        <div class="options-container" id="cityOptions"></div>
+                    </div>
+                    <!-- 添加新的城市到Territory搜索框 -->
+                    <div class="select-search-container" id="cityToTerritoryFilterContainer">
+                        <input type="text" placeholder="全部城市(to Territory)..." id="cityToTerritorySearch">
+                        <div class="options-container" id="cityToTerritoryOptions"></div>
+                    </div>
+                    <select id="mapStyle" onchange="changeMapStyle()">
+                        <option value="gaode">高德地图</option>
+                        <option value="cartodbpositron">CartoDB Positron</option>
+                        <option value="osm">OpenStreetMap</option>
+                    </select>
+                </div>
+            </div>
+            <div id="map"></div>
+        </div>
+        <div class="sidebar">
+            <div class="parameters-section">
+                <button class="collapsible">评分参数设置</button>
+                <div class="parameter-content">
+                    <div class="parameter-group">
+                        <h4>FTE 参数</h4>
+                        <div class="parameter-item">
+                            <span class="parameter-label">FTE达标分权重：</span>
+                            <input type="number" class="parameter-input" id="fteQualificationWeight" value="1.0" step="0.1">
+                        </div>
+                        <div class="parameter-item">
+                            <span class="parameter-label">FTE惩罚分系数：</span>
+                            <input type="number" class="parameter-input" id="ftePenaltyWeight" value="0.02" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <div class="parameter-group">
+                        <h4>生产力参数</h4>
+                        <div class="parameter-item">
+                            <span class="parameter-label">双低辖区惩罚系数：</span>
+                            <input type="number" class="parameter-input" id="doubleLowPenaltyWeight" value="0.2" step="0.1">
+                        </div>
+                        <div class="parameter-item">
+                            <span class="parameter-label">低生产力惩罚系数：</span>
+                            <input type="number" class="parameter-input" id="lowProductivityPenaltyWeight" value="0.5" step="0.1">
+                        </div>
+                    </div>
+                    
+                    <div class="parameter-group">
+                        <h4>潜力参数</h4>
+                        <div class="parameter-item">
+                            <span class="parameter-label">潜力得分权重：</span>
+                            <input type="number" class="parameter-input" id="potentialWeight" value="0.5" step="0.1">
+                        </div>
+                    </div>
+                    
+                    <div class="parameter-group">
+                        <h4>距离参数</h4>
+                        <div class="parameter-item">
+                            <span class="parameter-label">通勤距离惩罚系数：</span>
+                            <input type="number" class="parameter-input" id="distancePenaltyWeight" value="0.02" step="0.01">
+                        </div>
+                        <div class="parameter-item">
+                            <span class="parameter-label">通勤半径惩罚系数：</span>
+                            <input type="number" class="parameter-input" id="radiusPenaltyWeight" value="0.02" step="0.01">
+                        </div>
+                        <div class="parameter-item">
+                            <span class="parameter-label">跨城惩罚系������：</span>
+                            <input type="number" class="parameter-input" id="cityPenaltyWeight" value="0.05" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <button class="button reset-params-button" onclick="resetParameters()">重置参数</button>
+                </div>
+            </div>
+            <div id="mrPosStats"></div>
+            <div id="currentSelection"></div>
+            <div id="historyContainer"></div>
+        </div>
+    </div>
+</body>
+
+    <script>
+        const CONFIG = {
+            fte_lower_bound: 0.85,
+            fte_upper_bound: 1.15,
+            productivity_lower_bound: 0.5,
+            productivity_upper_bound: 3,
+            potential_lower_bound: 0.5,
+            potential_upper_bound: 1.5,
+            colors: generateRandomColors(100)
+        };
+    
+        function generateRandomColors(count) {
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                const color = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
+                colors.push(color);
+            }
+            return colors;
+        }
+
+        let map;
+        let drawnItems;
+        let drawControl;
+        let selectedAreas = [];
+        let allMarkers = [];
+        let hospitalData = [];
+        let mrPosColorMap = new Map();
+        let colorIndex = 0; 
+        let selectionHistory = [];
+        let isControlPressed = false;
+        let selectedMarkersByClick = new Set();
+
+        let baseMaps = {};
+        let contextMenu;
+        let selectedMarkerForContextMenu;
+        let convexHullLayers = new Map(); // 存储每个MR Pos的凸包图层
+
+        function initMap() {
+            map = L.map('map').setView([39.9042, 116.4074], 11);
+            
+            // 定义不同的地图图层
+            baseMaps = {
+                "高德地图": L.tileLayer('https://webrd02.is.autonavi.com/appmaptile?lang=zh_en&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+                    attribution: '© 高德地图'
+                }),
+                "CartoDB Positron": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '© CartoDB'
+                }),
+                "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                })
+            };
+            
+            // 默认添加高德地图图层
+            baseMaps["高德地图"].addTo(map);
+            
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+    
+            drawControl = new L.Control.Draw({
+                draw: {
+                    polygon: true,
+                    marker: false,
+                    circlemarker: false,
+                    circle: false,
+                    rectangle: true,
+                    polyline: false
+                },
+                edit: {
+                    featureGroup: drawnItems,
+                    remove: true
+                }
+            });
+            map.addControl(drawControl);
+    
+            map.on(L.Draw.Event.CREATED, function (e) {
+                const layer = e.layer;
+                drawnItems.addLayer(layer);
+                selectedAreas = [layer];
+                selectedMarkersByClick.clear();
+                updateMetricsForSelection();
+            });
+    
+            map.on(L.Draw.Event.DELETED, function (e) {
+                selectedAreas = [];
+                selectedMarkersByClick.clear();
+                updateMetricsForSelection();
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Alt' || e.key === 'Meta') {  // Meta 键是 Mac 上的 Command 键
+                    isControlPressed = true;
+                    document.getElementById('selectionMode').textContent = '选择模式: 点选';
+                }
+            });
+
+            document.addEventListener('keyup', function(e) {
+                if (e.key === 'Alt' || e.key === 'Meta') {
+                    isControlPressed = false;
+                    document.getElementById('selectionMode').textContent = '选择模式: 框选';
+                    if (selectedMarkersByClick.size > 0) {
+                        updateMetricsForSelection();
+                    }
+                }
+            });
+
+            initParameterListeners();
+        }
+
+        // 添加地图样式切换函数
+        function changeMapStyle() {
+            const selectedStyle = document.getElementById('mapStyle').value;
+            
+            // 移除所有现有图层
+            Object.values(baseMaps).forEach(layer => {
+                if (map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                }
+            });
+            
+            // 添加选中的图层
+            switch(selectedStyle) {
+                case 'gaode':
+                    baseMaps["高德地图"].addTo(map);
+                    break;
+                case 'cartodbpositron':
+                    baseMaps["CartoDB Positron"].addTo(map);
+                    break;
+                case 'osm':
+                    baseMaps["OpenStreetMap"].addTo(map);
+                    break;
+            }
+        }
+        
+        // 添加随机颜色函数
+        function randomizeColors() {
+            CONFIG.colors = generateRandomColors(100);
+            mrPosColorMap.clear();
+            colorIndex = 0;
+            
+            // 重新应用颜色到现有标记
+            allMarkers.forEach(marker => {
+                const color = getColorForMRPos(marker.hospitalData);
+                marker.setStyle({
+                    fillColor: color,
+                    color: color
+                });
+            });
+        }
+        
+        // 修改 generateRandomColors 函数，使颜色更加鲜艳
+        function generateRandomColors(count) {
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                // 使用 HSL 颜色空间生成更加鲜艳的颜色
+                const hue = Math.floor(Math.random() * 360);
+                const saturation = Math.floor(Math.random() * 20) + 80; // 80-100%
+                const lightness = Math.floor(Math.random() * 20) + 40;  // 40-60%
+                const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                colors.push(color);
+            }
+            return colors;
+        }
+
+        function updateMRPosSelect(data) {
+            const mrPosSet = new Set();
+            data.forEach(row => {
+                if (row['MR Pos']) {
+                    mrPosSet.add(row['MR Pos']);
+                }
+            });
+
+            const mrPosArray = ['全部 MR Pos', ...Array.from(mrPosSet).sort()];
+            initializeSearchSelect('mrPos', mrPosArray, filterByMRPos);
+        }
+
+        function filterByMRPos(selectedMRPos) {
+            selectedMRPos = selectedMRPos === '全部 MR Pos' ? '' : selectedMRPos;
+            
+            allMarkers.forEach(marker => {
+                const markerMRPos = marker.hospitalData['MR Pos'];
+                if (!selectedMRPos || markerMRPos === selectedMRPos) {
+                    marker.setStyle({
+                        fillColor: getColorForMRPos(marker.hospitalData),
+                        color: getColorForMRPos(marker.hospitalData),
+                        fillOpacity: 1.0,
+                        opacity: 1.0
+                    });
+                } else {
+                    marker.setStyle({
+                        fillColor: '#808080',
+                        color: '#808080',
+                        fillOpacity: 0.0,
+                        opacity: 0.1
+                    });
+                }
+            });
+
+            // 添加：如果选择了特定的 MR Pos，计算并显示其评分
+            if (selectedMRPos && selectedMRPos !== '全部 MR Pos') {
+                calculateSingleMRPosScore(selectedMRPos);
+            } else {
+                // 清除单个 MR Pos 的评分显示
+                const singleMRPosScoreDiv = document.getElementById('singleMRPosScore');
+                if (singleMRPosScoreDiv) {
+                    singleMRPosScoreDiv.remove();
+                }
+            }
+
+            // 更新凸包显示
+            if (document.getElementById('showConvexHull').checked) {
+                toggleConvexHull();
+            }
+        }
+
+        // 添加新函数：计算单个 MR Pos 的评分
+        function calculateSingleMRPosScore(mrPos) {
+            const params = getCurrentParameters();
+            const allStats = calculateOverallStats(hospitalData);
+            
+            // 获取该 MR Pos 的医院数据
+            const mrPosHospitals = hospitalData.filter(h => h['MR Pos'] === mrPos);
+            
+            // 计算该 MR Pos 的 FTE
+            const mrPosFTE = mrPosHospitals.reduce((sum, h) => sum + (parseFloat(h.fte) || 0), 0);
+            const fteScore = (mrPosFTE >= CONFIG.fte_lower_bound && mrPosFTE <= CONFIG.fte_upper_bound) ? 1 : 0;
+            
+            // 计算该 MR Pos 的生产力
+            const mrPosProductivity = mrPosHospitals.reduce((sum, h) => sum + (parseFloat(h.productivity) || 0), 0);
+            const relativeProductivity = mrPosProductivity / allStats.totalProductivity;
+            const productivityScore = (relativeProductivity >= 0.5 && relativeProductivity <= 1.5) ? 1 : 0;
+            
+            // 计算双低辖区得分
+            const currentYearSum = mrPosHospitals.reduce((sum, h) => sum + (parseFloat(h.productivity) || 0), 0);
+            const lastYearSum = mrPosHospitals.reduce((sum, h) => sum + (parseFloat(h.productivity_ly) || 0), 0);
+            const growthRate = lastYearSum > 0 ? currentYearSum / lastYearSum : 1;
+            const avgGrowthRate = calculateAverageGrowthRate(hospitalData);
+            const doubleLowPenalty = (relativeProductivity < 0.7 && relativeProductivity > 0.5 && growthRate < avgGrowthRate) ? 
+                -params.doubleLowPenaltyWeight : 0;
+            
+            // 计算低生产力得分
+            const lowProductivityPenalty = (relativeProductivity <= 0.5) ? -params.lowProductivityPenaltyWeight : 0;
+            
+            // 计算潜力得分
+            const mrPosPotential = mrPosHospitals.reduce((sum, h) => sum + (parseFloat(h.potential) || 0), 0);
+            const relativePotential = mrPosPotential / allStats.totalPotential;
+            const potentialScore = (relativePotential >= 0.5 && relativePotential <= 3.0) ? params.potentialWeight : 0;
+            
+            // 计算距离相关得分
+            const centroid = calculateCentroid(mrPosHospitals);
+            const mstDistance = calculateMST(mrPosHospitals, centroid);
+            const maxRadius = Math.max(...mrPosHospitals.map(h => 
+                calculateDistance(centroid.latitude, centroid.longitude, parseFloat(h.latitude), parseFloat(h.longitude))
+            ));
+            
+            const commuteDistanceScore = Math.min(40 / mstDistance, 2);
+            const commuteRadiusScore = Math.min(20 / maxRadius, 2);
+            
+            // 计算距离惩罚
+            const distancePenaltyRadius = maxRadius > 20 ? -params.radiusPenaltyWeight : 0;
+            const distancePenaltyTravel = mstDistance > 50 ? -params.distancePenaltyWeight : 0;
+            
+            // 计算跨城惩罚
+            const cities = new Set(mrPosHospitals.map(h => h.city));
+            const cityPenalty = cities.size > 1 ? -params.cityPenaltyWeight * (cities.size - 1) : 0;
+            
+            // 计算总分
+            const totalScore = fteScore + productivityScore + doubleLowPenalty + lowProductivityPenalty + 
+                potentialScore + commuteDistanceScore + commuteRadiusScore + 
+                distancePenaltyRadius + distancePenaltyTravel + cityPenalty;
+            
+            // 显示评分
+            displaySingleMRPosScore(mrPos, {
+                totalScore,
+                fteScore,
+                productivityScore,
+                doubleLowPenalty,
+                lowProductivityPenalty,
+                potentialScore,
+                commuteDistanceScore,
+                commuteRadiusScore,
+                distancePenaltyRadius,
+                distancePenaltyTravel,
+                cityPenalty
+            });
+        }
+
+        // 添加新函数：计算平均增长率
+        function calculateAverageGrowthRate(data) {
+            let totalProductivitySum = 0;
+            let totalProductivityLYSum = 0;
+            data.forEach(row => {
+                totalProductivitySum += parseFloat(row.productivity) || 0;
+                totalProductivityLYSum += parseFloat(row.productivity_ly) || 0;
+            });
+            return totalProductivityLYSum > 0 ? totalProductivitySum / totalProductivityLYSum : 1;
+        }
+
+        // 添加新函数：显示单个 MR Pos 的评分
+        function displaySingleMRPosScore(mrPos, scores) {
+            // 移除已存在的评分显示
+            const existingDiv = document.getElementById('singleMRPosScore');
+            if (existingDiv) {
+                existingDiv.remove();
+            }
+            
+            const scoreDiv = document.createElement('div');
+            scoreDiv.id = 'singleMRPosScore';
+            scoreDiv.className = 'mr-pos-stats';
+            scoreDiv.innerHTML = `
+                <h4>MR Pos ${mrPos} 评分详情</h4>
+                <div class="mr-pos-item" style="font-weight: bold; background-color: #f0f0f0; padding: 10px; border-radius: 4px;">
+                    <span>单项评分：</span>
+                    <span>${scores.totalScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>FTE达标分：</span>
+                    <span>${scores.fteScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>生产力达标分：</span>
+                    <span>${scores.productivityScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>双低辖区惩罚：</span>
+                    <span>${scores.doubleLowPenalty.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>低生产力惩罚：</span>
+                    <span>${scores.lowProductivityPenalty.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>潜力得分：</span>
+                    <span>${scores.potentialScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>通勤距离得分：</span>
+                    <span>${scores.commuteDistanceScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>通勤半径得分：</span>
+                    <span>${scores.commuteRadiusScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>距离惩罚：</span>
+                    <span>${(scores.distancePenaltyRadius + scores.distancePenaltyTravel).toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>跨城惩罚：</span>
+                    <span>${scores.cityPenalty.toFixed(3)}</span>
+                </div>
+            `;
+            
+            // 将评分插入到 mrPosStats 的开头
+            const mrPosStats = document.getElementById('mrPosStats');
+            mrPosStats.insertBefore(scoreDiv, mrPosStats.firstChild.nextSibling);
+        }
+
+        function createMetricsCard(stats, overallMetrics, selectedHospitals) {
+            const metrics = [
+                { 
+                    title: 'FTE总和', 
+                    value: stats.totalFTE.toFixed(2),
+                    ratio: calculateRatio(stats.totalFTE, overallMetrics.totalFTE),
+                    color: getStatusColor(stats.totalFTE / overallMetrics.totalFTE, CONFIG.fte_lower_bound, CONFIG.fte_upper_bound)
+                },
+                { 
+                    title: '生产力总和', 
+                    value: stats.totalProductivity.toFixed(2),
+                    ratio: calculateRatio(stats.totalProductivity, overallMetrics.totalProductivity),
+                    color: getStatusColor(stats.totalProductivity / overallMetrics.totalProductivity, CONFIG.productivity_lower_bound, CONFIG.productivity_upper_bound)
+                },
+                { 
+                    title: '潜力总和', 
+                    value: stats.totalPotential.toFixed(2),
+                    ratio: calculateRatio(stats.totalPotential, overallMetrics.totalPotential),
+                    color: getStatusColor(stats.totalPotential / overallMetrics.totalPotential, CONFIG.potential_lower_bound, CONFIG.potential_upper_bound)
+                }
+            ];
+    
+            const historyItem = document.createElement('div');
+            
+            const timestamp = document.createElement('div');
+            timestamp.classList.add('history-timestamp');
+            timestamp.textContent = new Date().toLocaleString();
+            historyItem.appendChild(timestamp);
+    
+            const metricsGrid = document.createElement('div');
+            metricsGrid.classList.add('metrics-grid');
+    
+            metrics.forEach(metric => {
+                const card = document.createElement('div');
+                card.classList.add('metric-card');
+                
+                const title = document.createElement('div');
+                title.classList.add('metric-title');
+                title.textContent = metric.title;
+    
+                const value = document.createElement('div');
+                value.classList.add('metric-value');
+                value.textContent = metric.value;
+    
+                const ratio = document.createElement('div');
+                ratio.classList.add('ratio');
+                ratio.textContent = `比率: ${metric.ratio}`;
+    
+                const status = document.createElement('div');
+                status.classList.add('status', metric.color);
+                status.textContent = metric.color === 'status-good' ? '正常' : (metric.color === 'status-low' ? '低于正常' : '高于正常');
+    
+                card.appendChild(title);
+                card.appendChild(value);
+                card.appendChild(ratio);
+                card.appendChild(status);
+    
+                metricsGrid.appendChild(card);
+            });
+            historyItem.appendChild(metricsGrid);
+    
+            const hospitalsList = document.createElement('div');
+            hospitalsList.classList.add('hospitals-list');
+            hospitalsList.innerHTML = `<strong>选中的医院 (${selectedHospitals.length}家):</strong>`;
+            
+            selectedHospitals.forEach(hospital => {
+                const hospitalItem = document.createElement('div');
+                hospitalItem.classList.add('hospital-item');
+                hospitalItem.textContent = hospital.hco_nm;
+                hospitalsList.appendChild(hospitalItem);
+            });
+            
+            historyItem.appendChild(hospitalsList);
+    
+            return historyItem;
+        }
+    
+        async function processFile() {
+            const fileInput = document.getElementById('fileUpload');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('请先选择文件');
+                return;
+            }
+    
+            const data = await readXlsxFile(file);
+            if (data) {
+                hospitalData = data;
+                mrPosColorMap.clear();
+                colorIndex = 0;
+                selectionHistory = [];
+                selectedMarkersByClick.clear();
+                updateMRPosSelect(data);
+                processData(data);
+            }
+        }
+    
+        function readXlsxFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                        console.log("Parsed Excel data:", jsonData);
+                        resolve(jsonData);
+                    } catch (error) {
+                        console.error("Error parsing Excel file:", error);
+                        reject(error);
+                    }
+                };
+                
+                reader.onerror = function(err) {
+                    console.error("Error reading file:", err);
+                    reject(err);
+                };
+                
+                reader.readAsArrayBuffer(file);
+            });
+        }
+    
+        function processData(data) {
+            console.log("Processing data:", data);
+            addDataPointsToMap(data);
+            updateMRPosSelect(data);
+            updateCitySelect(data);
+            updateCityToTerritorySelect(data); // 添加这行
+            updateHospitalSelect(data);
+            const overallMetrics = calculateOverallStats(data);
+            updateMRPosStats(data);
+        }
+    
+        function getColorForMRPos(row) {
+            if (!row['MR Pos']) {
+                return '#808080';
+            }
+            
+            if (!mrPosColorMap.has(row['MR Pos'])) {
+                mrPosColorMap.set(row['MR Pos'], CONFIG.colors[colorIndex % CONFIG.colors.length]);
+                colorIndex++;
+            }
+            
+            return mrPosColorMap.get(row['MR Pos']);
+        }
+    
+        function addDataPointsToMap(data) {
+            allMarkers.forEach(marker => drawnItems.removeLayer(marker));
+            allMarkers = [];
+
+            data.forEach(row => {
+                const color = getColorForMRPos(row);
+                if (row.latitude && row.longitude) {
+                    const marker = L.circleMarker([row.latitude, row.longitude], {
+                        radius: 8,
+                        fillColor: color,
+                        color: color,
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+
+                    // 添加右键点击事件
+                    marker.on('contextmenu', function(e) {
+                        showContextMenu(e, marker);
+                    });
+
+                    // 存储闪烁定时器的变量
+                    let blinkInterval;
+
+                    // Add click handler for Control+Click selection
+                    marker.on('click', function(e) {
+                        if (isControlPressed) {
+                            if (selectedMarkersByClick.has(marker)) {
+                                selectedMarkersByClick.delete(marker);
+                                marker.setStyle({
+                                    fillOpacity: 0.8,
+                                    weight: 1
+                                });
+                                clearInterval(blinkInterval); // 停止闪烁
+                            } else {
+                                selectedMarkersByClick.add(marker);
+                                marker.setStyle({
+                                    fillOpacity: 1,
+                                    weight: 3
+                                });
+
+                                // 启动闪烁效果
+                                blinkInterval = setInterval(() => {
+                                    const currentOpacity = marker.options.fillOpacity;
+                                    marker.setStyle({
+                                        fillOpacity: currentOpacity === 1 ? 0.5 : 1
+                                    });
+                                }, 500); // 500ms 的闪烁间隔
+                            }
+                        }
+                    });
+
+                    marker.bindPopup(`<b>医院:</b> ${row.hco_nm}<br>` +
+                        `<b>FTE:</b> ${row.fte}<br>` +
+                        `<b>生产力:</b> ${row.productivity}<br>` +
+                        `<b>潜力:</b> ${row.potential}<br>` +
+                        `<b>MR Pos:</b> ${row['MR Pos']}`
+                    );
+                    marker.hospitalData = row;
+                    allMarkers.push(marker);
+                    drawnItems.addLayer(marker);
+                }
+            });
+
+            const bounds = L.featureGroup(allMarkers).getBounds();
+            if (bounds.isValid()) {
+                map.fitBounds(bounds);
+            }
+        }
+
+    
+        function calculateStats(data) {
+            const totalFTE = data.reduce((sum, item) => sum + (item.fte || 0), 0);
+            const totalProductivity = data.reduce((sum, item) => sum + (item.productivity || 0), 0);
+            const totalPotential = data.reduce((sum, item) => sum + (item.potential || 0), 0);
+            return { totalFTE, totalProductivity, totalPotential };
+        }
+
+        function calculateOverallStats(data) {
+            const totalFTE = data.reduce((sum, row) => sum + (row.fte || 0), 0);
+            // const nTerritories = Math.ceil(totalFTE);
+            // const nTerritories = 45;
+            // 如果数据包含 MR Pos 字段，则计算唯一的 MR Pos 数量作为 nTerritories
+            const uniqueMRPosCount = new Set(data.map(row => row['MR Pos'])).size;
+            const nTerritories = uniqueMRPosCount > 0 ? uniqueMRPosCount : Math.ceil(totalFTE);
+
+
+            const totalProductivity = data.reduce((sum, row) => sum + (row.productivity || 0), 0) / nTerritories;
+            const totalPotential = data.reduce((sum, row) => sum + (row.potential || 0), 0) / nTerritories;
+
+            return {
+                // totalFTE: totalFTE / nTerritories,
+                totalFTE: totalFTE / totalFTE,
+                totalProductivity,
+                totalPotential
+            };
+        }
+    
+        function calculateRatio(selectedValue, overallValue) {
+            return (selectedValue / overallValue).toFixed(2);
+        }
+    
+        function updateMetricsForSelection() {
+            let selectedMarkers = [];
+            
+            // Combine markers from both selection methods
+            if (selectedAreas.length > 0) {
+                selectedMarkers = allMarkers.filter(marker => {
+                    return selectedAreas.some(area => area.getBounds().contains(marker.getLatLng()));
+                });
+            }
+            
+            // Add markers selected by Control+Click
+            selectedMarkersByClick.forEach(marker => {
+                if (!selectedMarkers.includes(marker)) {
+                    selectedMarkers.push(marker);
+                }
+            });
+    
+            const selectedData = selectedMarkers.map(marker => marker.hospitalData);
+            const selectedStats = calculateStats(selectedData);
+            const overallMetrics = calculateOverallStats(hospitalData);
+    
+            // Update current selection
+            const currentSelectionElement = document.getElementById('currentSelection');
+            currentSelectionElement.innerHTML = '';
+            if (selectedData.length > 0) {
+                const metricsCard = createMetricsCard(selectedStats, overallMetrics, selectedData);
+                currentSelectionElement.appendChild(metricsCard);
+                
+                // Add to history
+                selectionHistory.unshift({
+                    stats: selectedStats,
+                    hospitals: selectedData,
+                    timestamp: new Date()
+                });
+    
+                // Update history display
+                updateHistoryDisplay();
+            }
+        }
+    
+        function updateHistoryDisplay() {
+            const historyContainer = document.getElementById('historyContainer');
+            historyContainer.innerHTML = '';
+            
+            selectionHistory.forEach((item, index) => {
+                if (index === 0) return; // Skip the current selection which is already displayed
+                const historyItem = createMetricsCard(item.stats, calculateStats(hospitalData), item.hospitals);
+                historyItem.classList.add('history-item');
+                historyContainer.appendChild(historyItem);
+            });
+        }
+    
+        function getStatusColor(value, lowerBound, upperBound) {
+            if (value < lowerBound) {
+                return 'status-low';
+            } else if (value > upperBound) {
+                return 'status-high';
+            }
+            return 'status-good';
+        }
+    
+        function resetMap() {
+            drawnItems.clearLayers();
+            selectedAreas = [];
+            selectedMarkersByClick.clear();
+            addDataPointsToMap(hospitalData);
+            const currentSelectionElement = document.getElementById('currentSelection');
+            currentSelectionElement.innerHTML = '';
+            document.getElementById('historyContainer').innerHTML = '';
+            selectionHistory = [];
+            
+            // 清除凸包图层
+            convexHullLayers.forEach(layer => {
+                map.removeLayer(layer);
+            });
+            convexHullLayers.clear();
+            document.getElementById('showConvexHull').checked = false;
+        }
+    
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            // 使用直线距离计算
+            const dx = lat2 - lat1;
+            const dy = lon2 - lon1;
+            return Math.sqrt(dx * dx + dy * dy) * 100; // 乘以100转换为公里
+        }
+
+        function calculateCentroid(points) {
+            if (points.length === 0) return null;
+            
+            let totalWeight = 0;
+            let weightedSumLat = 0;
+            let weightedSumLon = 0;
+            
+            // Define weight limits
+            const MIN_WEIGHT = 0.05;  // Minimum weight (FTE)
+            const MAX_WEIGHT = 1;  // Maximum weight (FTE)
+            
+            points.forEach(p => {
+                // 修正 FTE 权重处理
+                let weight = parseFloat(p.fte);
+                // 确保 null、undefined、0 或小于 MIN_WEIGHT 的值都使用 MIN_WEIGHT
+                weight = (isNaN(weight) || weight < MIN_WEIGHT) ? MIN_WEIGHT : Math.min(weight, MAX_WEIGHT);
+                
+                totalWeight += weight;
+                weightedSumLat += parseFloat(p.latitude) * weight;
+                weightedSumLon += parseFloat(p.longitude) * weight;
+            });
+            
+            return {
+                latitude: weightedSumLat / totalWeight,
+                longitude: weightedSumLon / totalWeight
+            };
+        }
+
+        function calculateMST(points, centroid) {
+            if (points.length === 0) return 0;
+            
+            // Add centroid as the first point
+            const allPoints = [
+                { latitude: centroid.latitude, longitude: centroid.longitude, isCentroid: true },
+                ...points.map(p => ({ 
+                    latitude: parseFloat(p.latitude), 
+                    longitude: parseFloat(p.longitude), 
+                    isCentroid: false 
+                }))
+            ];
+            
+            const n = allPoints.length;
+            const visited = new Set([0]); // Start with centroid
+            let totalDistance = 0;
+            
+            while (visited.size < n) {
+                let minDist = Infinity;
+                let nextPoint = -1;
+                
+                // Find the closest unvisited point to any visited point
+                visited.forEach(visitedIdx => {
+                    for (let i = 0; i < n; i++) {
+                        if (!visited.has(i)) {
+                            const dist = calculateDistance(
+                                allPoints[visitedIdx].latitude,
+                                allPoints[visitedIdx].longitude,
+                                allPoints[i].latitude,
+                                allPoints[i].longitude
+                            );
+                            if (dist < minDist) {
+                                minDist = dist;
+                                nextPoint = i;
+                            }
+                        }
+                    }
+                });
+                
+                visited.add(nextPoint);
+                totalDistance += minDist;
+            }
+            
+            return totalDistance;
+        }
+
+        function updateMRPosStats(data) {
+            const mrPosStats = new Map();
+            const mrPosProductivity = new Map();
+            const mrPosProductivityLY = new Map();
+            const mrPosPotential = new Map();
+            
+            // 计算每个 MR Pos 的各项指标
+            data.forEach(row => {
+                if (!row['MR Pos']) return;
+                
+                const mrPos = row['MR Pos'];
+                const fte = parseFloat(row.fte) || 0;
+                const productivity = parseFloat(row.productivity) || 0;
+                const productivity_ly = parseFloat(row.productivity_ly) || 0;
+                const potential = parseFloat(row.potential) || 0;
+                
+                mrPosStats.set(mrPos, (mrPosStats.get(mrPos) || 0) + fte);
+                mrPosProductivity.set(mrPos, productivity);
+                mrPosProductivityLY.set(mrPos, productivity_ly);
+                mrPosPotential.set(mrPos, potential);
+            });
+
+            // 修改平均增长率计算
+            let totalProductivitySum = 0;
+            let totalProductivityLYSum = 0;
+            data.forEach(row => {
+                if (!row['MR Pos']) return;
+                
+                const productivity = parseFloat(row.productivity) || 0;
+                const productivity_ly = parseFloat(row.productivity_ly) || 0;
+                
+                totalProductivitySum += productivity;
+                totalProductivityLYSum += productivity_ly;
+            });
+
+            // 计算整体的增长率
+            const avg_productivity_growth = totalProductivityLYSum > 0 ? 
+                totalProductivitySum / totalProductivityLYSum : 1;
+
+            // 获取所有值的数组，用于后续计算
+            const territory_fte = Array.from(mrPosStats.values());
+            const territory_productivity = Array.from(mrPosProductivity.values());
+            const territory_productivity_gr = Array.from(mrPosProductivity.values())
+                .map((prod, index) => prod / Array.from(mrPosProductivityLY.values())[index]);
+
+            // FTE 相关计算（保持原有的）
+            const totalMRPos = mrPosStats.size;
+            const inRangeMRPos = territory_fte.filter(fte => 
+                fte >= CONFIG.fte_lower_bound && fte <= CONFIG.fte_upper_bound
+            ).length;
+            const fteRatio = totalMRPos > 0 ? inRangeMRPos / totalMRPos : 0;
+            const qualificationScore = fteRatio >= 0.8 ? 1.0 : 0.0;
+
+            // 获取当前参数
+            const params = getCurrentParameters();
+
+            // FTE 惩计算 - 使用参数中 ftePenaltyWeight
+            const ftePenaltyScore = -params.ftePenaltyWeight * [1,2,3,4,5,6,7].reduce((sum, i) => {
+                const lowerBound = CONFIG.fte_lower_bound - 0.05 * i;
+                const upperBound = CONFIG.fte_upper_bound + 0.05 * i;
+                const outOfRangeCount = territory_fte.filter(fte => 
+                    fte < lowerBound || fte > upperBound
+                ).length;
+                return sum + outOfRangeCount;
+            }, 0);
+
+            // Calculate total average productivity and MR Pos count
+            let totalProductivity = 0;
+            let totalMRPosCount = new Set(data.filter(row => row['MR Pos']).map(row => row['MR Pos'])).size;
+            
+            data.forEach(row => {
+                if (row['MR Pos'] && row.productivity) {
+                    totalProductivity += parseFloat(row.productivity) || 0;
+                }
+            });
+            
+            const avgTotalProductivity = totalProductivity / totalMRPosCount;
+            
+            // Calculate relative productivity for each MR Pos
+            const mrPosRelativeProductivity = new Map();
+            const mrPosGroups = new Map();
+            
+            // Group by MR Pos
+            data.forEach(row => {
+                if (!row['MR Pos']) return;
+                
+                const mrPos = row['MR Pos'];
+                if (!mrPosGroups.has(mrPos)) {
+                    mrPosGroups.set(mrPos, []);
+                }
+                mrPosGroups.get(mrPos).push(row);
+            });
+            
+            // Calculate relative productivity for each MR Pos
+            mrPosGroups.forEach((hospitals, mrPos) => {
+                const mrPosProductivitySum = hospitals.reduce((sum, hospital) => 
+                    sum + (parseFloat(hospital.productivity) || 0), 0);
+                const relativeProductivity = mrPosProductivitySum / avgTotalProductivity;
+                mrPosRelativeProductivity.set(mrPos, relativeProductivity);
+            });
+            
+            // Calculate ratio of MR Pos within range
+            const inRangeProductivity = Array.from(mrPosRelativeProductivity.values()).filter(prod => 
+                prod >= 0.5 && prod <= 1.5
+            ).length;
+            
+            const productivityRatio = totalMRPosCount > 0 ? inRangeProductivity / totalMRPosCount : 0;
+
+            // 双低辖区惩罚分 - 使用参数中的 doubleLowPenaltyWeight
+            const doubleLowPenalty = -params.doubleLowPenaltyWeight * Array.from(mrPosRelativeProductivity.entries()).reduce((count, [mrPos, relProd]) => {
+                // 获取该 MR Pos 的所有医院
+                const hospitals = mrPosGroups.get(mrPos) || [];
+                
+                // 计算当前年度和去年的生产力总和
+                const currentYearSum = hospitals.reduce((sum, hospital) => 
+                    sum + (parseFloat(hospital.productivity) || 0), 0);
+                const lastYearSum = hospitals.reduce((sum, hospital) => 
+                    sum + (parseFloat(hospital.productivity_ly) || 0), 0);
+                
+                // 计算增长率
+                const growthRate = lastYearSum > 0 ? currentYearSum / lastYearSum : 1;
+                
+                return count + (
+                    relProd < 0.7 && 
+                    relProd > 0.5 && 
+                    growthRate < avg_productivity_growth 
+                    ? 1 
+                    : 0
+                );
+            }, 0);
+
+            // 低生产力辖区惩罚分 - 使用参数中的 lowProductivityPenaltyWeight
+            const lowProductivityPenalty = -params.lowProductivityPenaltyWeight * 
+                Array.from(mrPosRelativeProductivity.values()).filter(prod => prod <= 0.5).length;
+
+            // Calculate average potential across all MR Pos
+            let totalPotential = 0;
+            data.forEach(row => {
+                if (row['MR Pos'] && row.potential) {
+                    totalPotential += parseFloat(row.potential) || 0;
+                }
+            });
+            const avgTotalPotential = totalPotential / totalMRPosCount;
+
+            // Calculate relative potential for each MR Pos
+            const mrPosRelativePotential = new Map();
+            mrPosGroups.forEach((hospitals, mrPos) => {
+                const mrPosPotentialSum = hospitals.reduce((sum, hospital) => 
+                    sum + (parseFloat(hospital.potential) || 0), 0);
+                const relativePotential = mrPosPotentialSum / avgTotalPotential;
+                mrPosRelativePotential.set(mrPos, relativePotential);
+            });
+
+            // Calculate ratio of MR Pos within potential range
+            const inRangePotential = Array.from(mrPosRelativePotential.values()).filter(pot => 
+                pot >= 0.5 && pot <= 3.0
+            ).length;
+            const potentialRatio = totalMRPosCount > 0 ? inRangePotential / totalMRPosCount : 0;
+
+            // 计算每个 MR Pos 的距离指标
+            const mrPosDistances = new Map();
+            const mrPosHospitals = new Map();
+
+            // 按 MR Pos 分组医院
+            data.forEach(row => {
+                if (!row['MR Pos'] || !row.latitude || !row.longitude) return;
+                
+                const mrPos = row['MR Pos'];
+                if (!mrPosHospitals.has(mrPos)) {
+                    mrPosHospitals.set(mrPos, []);
+                }
+                mrPosHospitals.get(mrPos).push(row);
+            });
+
+            // 修改：计算每个 MR Pos 的距离指标
+            mrPosHospitals.forEach((hospitals, mrPos) => {
+                const centroid = calculateCentroid(hospitals);
+                if (!centroid) return;
+
+                // Calculate MST distance
+                const mstDistance = calculateMST(hospitals, centroid);
+                
+                // Calculate max radius (distance from centroid to farthest point)
+                const maxRadius = Math.max(...hospitals.map(hospital => 
+                    calculateDistance(
+                        centroid.latitude,
+                        centroid.longitude,
+                        parseFloat(hospital.latitude),
+                        parseFloat(hospital.longitude)
+                    )
+                ));
+
+                mrPosDistances.set(mrPos, {
+                    mrPos: mrPos,
+                    totalDistance: mstDistance,  // Now using MST distance
+                    hospitalCount: hospitals.length,
+                    maxDistance: maxRadius
+                });
+            });
+
+            // 计算所有辖区的平均值和得分
+            const allDistances = Array.from(mrPosDistances.values());
+            const avgCommuteDistance = allDistances.reduce((sum, d) => sum + d.totalDistance, 0) / allDistances.length;
+            const avgCommuteRadius = allDistances.reduce((sum, d) => sum + d.maxDistance, 0) / allDistances.length;
+            
+            // 计算得分，并限制最大值为2
+            const commuteDistanceScore = Math.min(40 / avgCommuteDistance, 2);
+            const commuteRadiusScore = Math.min(20 / avgCommuteRadius, 2);
+
+            // 获取所有辖区的距离数据数组
+            const territory_radius = Array.from(mrPosDistances.values()).map(d => d.maxDistance);
+            const territory_distance = Array.from(mrPosDistances.values()).map(d => d.totalDistance);
+
+            // 距离惩罚分 - 使用参数中的相应权重
+            const distance_penalty_radius = -params.radiusPenaltyWeight * [1,2,3,4].reduce((sum, i) => {
+                const threshold = 20 + 10 * i;
+                const exceededCount = territory_radius.filter(radius => radius > threshold).length;
+                return sum + exceededCount;
+            }, 0);
+
+            const distance_penalty_travel = -params.distancePenaltyWeight * [1,2,3,4].reduce((sum, i) => {
+                const threshold = 50 + 25 * i;
+                const exceededCount = territory_distance.filter(distance => distance > threshold).length;
+                return sum + exceededCount;
+            }, 0);
+
+            // 计算每个 MR Pos 的城市覆盖
+            const mrPosCities = new Map();
+            
+            // 统每个辖区覆盖的唯一城市
+            data.forEach(row => {
+                if (!row['MR Pos'] || !row.city) return;
+                
+                const mrPos = row['MR Pos'];
+                if (!mrPosCities.has(mrPos)) {
+                    mrPosCities.set(mrPos, new Set());
+                }
+                mrPosCities.get(mrPos).add(row.city);
+            });
+
+            // 获取每个辖区的城市数量数组
+            const territory_cities = Array.from(mrPosCities.values()).map(cities => cities.size);
+            
+            // 计算总的跨城数量（所有辖区城市数量之和减去辖区数量）
+            const total_cross_cities = territory_cities.reduce((sum, count) => sum + count, 0) - territory_cities.length;
+
+            // 城市惩罚分 - 使用参数中的 cityPenaltyWeight
+            const distance_penalty_city = -params.cityPenaltyWeight * [0,1,2,3].reduce((sum, i) => {
+                const excess = Math.max(total_cross_cities - i, 0);
+                return sum + excess;
+            }, 0);
+
+            // 计算总评分
+            const totalScore = (
+                fteRatio +                                                    // FTE在范围内的占比
+                params.fteQualificationWeight * qualificationScore +          // FTE达标分
+                ftePenaltyScore +                                            // FTE惩罚分（已包含权重）
+                productivityRatio +                                          // Productivity在范围内的占比
+                doubleLowPenalty +                                           // 双低辖区惩罚分（已包含权重）
+                lowProductivityPenalty +                                     // 低生产力辖区惩罚分（已包含权重）
+                params.potentialWeight * potentialRatio +                    // Potential在范围内的占比
+                commuteDistanceScore +                                       // 平均通勤距离得分
+                commuteRadiusScore +                                         // 平均通勤半径得分
+                distance_penalty_travel +                                    // 通勤距离惩罚分（已包含权重）
+                distance_penalty_radius +                                    // 通勤半径惩罚分（已包含权重）
+                distance_penalty_city                                        // 跨城惩罚分（已包含权重）
+            );
+
+            // 创建显示
+            const statsContainer = document.getElementById('mrPosStats');
+            statsContainer.innerHTML = '<h3>MR Pos 分析</h3>';
+            
+            const statsDiv = document.createElement('div');
+            statsDiv.classList.add('mr-pos-stats');
+
+            // FTE 相关指标显示（保持原有的）
+            statsDiv.innerHTML += `
+                <div class="mr-pos-item">
+                    <span>FTE在[${CONFIG.fte_lower_bound}, ${CONFIG.fte_upper_bound}]范围内的占比：</span>
+                    <span>${(fteRatio * 100).toFixed(1)}% (${inRangeMRPos}/${totalMRPos})</span>
+                    <button class="collapsible-detail">查看详情</button>
+                    <div class="detail-content">
+                        ${Array.from(mrPosStats.entries())
+                            .filter(([mrPos, fte]) => fte < CONFIG.fte_lower_bound || fte > CONFIG.fte_upper_bound)
+                            .map(([mrPos, fte]) => `
+                                <div class="cross-city-item">
+                                    <span>MR Pos ${mrPos}:</span>
+                                    <span>FTE = ${fte.toFixed(2)}</span>
+                                </div>
+                            `).join('')}
+                    </div>
+                </div>
+
+                <!-- Productivity 相关指标 -->
+                <div class="mr-pos-item">
+                    <span>相对Productivity在[0.5, 1.5]范围内的占比：</span>
+                    <span>${(productivityRatio * 100).toFixed(1)}% (${inRangeProductivity}/${totalMRPosCount})</span>
+                    <button class="collapsible-detail">查看详情</button>
+                    <div class="detail-content">
+                        ${Array.from(mrPosRelativeProductivity.entries())
+                            .filter(([mrPos, prod]) => prod < 0.5 || prod > 1.5)
+                            .map(([mrPos, prod]) => `
+                                <div class="cross-city-item">
+                                    <span>MR Pos ${mrPos}:</span>
+                                    <span>相对生产力 = ${prod.toFixed(2)}</span>
+                                </div>
+                            `).join('')}
+                    </div>
+                </div>
+
+                <!-- 双低辖区 -->
+                <div class="mr-pos-item">
+                    <span>双低辖区惩罚分：</span>
+                    <span>${doubleLowPenalty.toFixed(3)}</span>
+                    <button class="collapsible-detail">查看详情</button>
+                    <div class="detail-content">
+                        ${Array.from(mrPosRelativeProductivity.entries())
+                            .filter(([mrPos, relProd]) => {
+                                const hospitals = mrPosGroups.get(mrPos) || [];
+                                const currentYearSum = hospitals.reduce((sum, hospital) => 
+                                    sum + (parseFloat(hospital.productivity) || 0), 0);
+                                const lastYearSum = hospitals.reduce((sum, hospital) => 
+                                    sum + (parseFloat(hospital.productivity_ly) || 0), 0);
+                                const growthRate = lastYearSum > 0 ? currentYearSum / lastYearSum : 1;
+                                return relProd < 0.7 && relProd > 0.5 && growthRate < avg_productivity_growth;
+                            })
+                            .map(([mrPos, relProd]) => {
+                                const hospitals = mrPosGroups.get(mrPos) || [];
+                                const currentYearSum = hospitals.reduce((sum, hospital) => 
+                                    sum + (parseFloat(hospital.productivity) || 0), 0);
+                                const lastYearSum = hospitals.reduce((sum, hospital) => 
+                                    sum + (parseFloat(hospital.productivity_ly) || 0), 0);
+                                const growthRate = lastYearSum > 0 ? currentYearSum / lastYearSum : 1;
+                                return `
+                                    <div class="cross-city-item">
+                                        <span>MR Pos ${mrPos}:</span>
+                                        <span>相对生产力 = ${relProd.toFixed(2)}, 增长率 = ${growthRate.toFixed(2)}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                    </div>
+                </div>
+
+                <!-- 低生产力辖区 -->
+                <div class="mr-pos-item">
+                    <span>低生产力辖区惩罚分：</span>
+                    <span>${lowProductivityPenalty.toFixed(3)}</span>
+                    <button class="collapsible-detail">查看详情</button>
+                    <div class="detail-content">
+                        ${Array.from(mrPosRelativeProductivity.entries())
+                            .filter(([mrPos, prod]) => prod <= 0.5)
+                            .map(([mrPos, prod]) => `
+                                <div class="cross-city-item">
+                                    <span>MR Pos ${mrPos}:</span>
+                                    <span>相对生产力 = ${prod.toFixed(2)}</span>
+                                </div>
+                            `).join('')}
+                    </div>
+                </div>
+
+                <!-- Potential 相关指标 -->
+                <div class="mr-pos-item">
+                    <span>相对Potential在[0.5, 3.0]范围内的占比：</span>
+                    <span>${(potentialRatio * 100).toFixed(1)}% (${inRangePotential}/${totalMRPosCount})</span>
+                    <button class="collapsible-detail">查看详情</button>
+                    <div class="detail-content">
+                        ${Array.from(mrPosRelativePotential.entries())
+                            .filter(([mrPos, pot]) => pot < 0.5 || pot > 3.0)
+                            .map(([mrPos, pot]) => `
+                                <div class="cross-city-item">
+                                    <span>MR Pos ${mrPos}:</span>
+                                    <span>相对潜力 = ${pot.toFixed(2)}</span>
+                                </div>
+                            `).join('')}
+                    </div>
+                </div>
+
+                <!-- 通勤距离 -->
+                <div class="mr-pos-item">
+                    <span>通勤距离惩罚分：</span>
+                    <span>${distance_penalty_travel.toFixed(3)}</span>
+                    <button class="collapsible-detail">查看详情</button>
+                    <div class="detail-content">
+                        ${Array.from(mrPosDistances.entries())
+                            .filter(([mrPos, data]) => data.totalDistance > 50)
+                            .map(([mrPos, data]) => `
+                                <div class="cross-city-item">
+                                    <span>MR Pos ${mrPos}:</span>
+                                    <span>通勤距离 = ${data.totalDistance.toFixed(1)} km</span>
+                                </div>
+                            `).join('')}
+                    </div>
+                </div>
+
+                <!-- 通勤半径 -->
+                <div class="mr-pos-item">
+                    <span>通勤半径惩罚分：</span>
+                    <span>${distance_penalty_radius.toFixed(3)}</span>
+                    <button class="collapsible-detail">查看详情</button>
+                    <div class="detail-content">
+                        ${Array.from(mrPosDistances.entries())
+                            .filter(([mrPos, data]) => data.maxDistance > 20)
+                            .map(([mrPos, data]) => `
+                                <div class="cross-city-item">
+                                    <span>MR Pos ${mrPos}:</span>
+                                    <span>最大半径 = ${data.maxDistance.toFixed(1)} km</span>
+                                </div>
+                            `).join('')}
+                    </div>
+                </div>
+            `;
+
+            // 在显示部分添加城市指标，修改这部分代码
+            statsDiv.innerHTML += `
+                <div class="mr-pos-item">
+                    <span>跨城惩罚分：</span>
+                    <span>${distance_penalty_city.toFixed(3)}</span>
+                    <button class="collapsible-detail">查看详情</button>
+                    <div class="detail-content">
+                        ${Array.from(mrPosCities.entries())
+                            .filter(([mrPos, cities]) => cities.size > 1)
+                            .map(([mrPos, cities]) => `
+                                <div class="cross-city-item">
+                                    <span>MR Pos ${mrPos}:</span>
+                                    <span>${Array.from(cities).join(', ')}</span>
+                                </div>
+                            `).join('')}
+                    </div>
+                </div>
+            `;
+
+
+            // 在最前面显示总评分
+            statsDiv.innerHTML = `
+                <div class="mr-pos-item" style="font-weight: bold; font-size: 1.2em; margin-bottom: 15px; background-color: #f0f0f0; padding: 10px; border-radius: 4px;">
+                    <span>总评分：</span>
+                    <span>${totalScore.toFixed(3)}</span>
+                </div>
+            ` + statsDiv.innerHTML;  // 将原有内容添加在总评分后面
+
+            statsContainer.appendChild(statsDiv);
+        }
+    
+        function showContextMenu(e, marker) {
+            // 阻止默认右键菜单
+            e.originalEvent.preventDefault();
+            
+            // 移除已存在的上下文菜单
+            if (contextMenu) {
+                contextMenu.remove();
+            }
+
+            // 创建上下文菜单
+            contextMenu = document.createElement('div');
+            contextMenu.className = 'context-menu';
+            
+            // 获取所有唯一的 MR Pos
+            const mrPosSet = new Set(hospitalData.map(h => h['MR Pos']));
+            const mrPosList = Array.from(mrPosSet).sort();
+
+            // 创建选择框
+            const select = document.createElement('select');
+            select.innerHTML = '<option value="">选择新的 MR Pos</option>';
+            mrPosList.forEach(mrPos => {
+                if (mrPos !== marker.hospitalData['MR Pos']) {
+                    const option = document.createElement('option');
+                    option.value = mrPos;
+                    option.textContent = `MR Pos: ${mrPos}`;
+                    select.appendChild(option);
+                }
+            });
+
+            // 创建确认按钮
+            const confirmButton = document.createElement('div');
+            confirmButton.className = 'context-menu-item';
+            confirmButton.textContent = '确认修改';
+            confirmButton.onclick = () => {
+                const newMrPos = select.value;
+                if (newMrPos) {
+                    updateMarkerMrPos(marker, newMrPos);
+                    contextMenu.remove();
+                }
+            };
+
+            contextMenu.appendChild(select);
+            contextMenu.appendChild(confirmButton);
+
+            // 设置菜单位置
+            contextMenu.style.left = `${e.originalEvent.pageX}px`;
+            contextMenu.style.top = `${e.originalEvent.pageY}px`;
+            
+            document.body.appendChild(contextMenu);
+            selectedMarkerForContextMenu = marker;
+        }
+
+        function updateMarkerMrPos(marker, newMrPos) {
+            // 更新数据
+            const hospitalIndex = hospitalData.findIndex(h => 
+                h.hco_nm === marker.hospitalData.hco_nm &&
+                h.latitude === marker.hospitalData.latitude &&
+                h.longitude === marker.hospitalData.longitude
+            );
+
+            if (hospitalIndex !== -1) {
+                // 更新 hospitalData 中的 MR Pos
+                hospitalData[hospitalIndex]['MR Pos'] = newMrPos;
+                // 更新 marker 的数据
+                marker.hospitalData['MR Pos'] = newMrPos;
+                
+                // 更新标记的颜色
+                const newColor = getColorForMRPos(marker.hospitalData);
+                marker.setStyle({
+                    fillColor: newColor,
+                    color: newColor
+                });
+
+                // 更新弹出框内容
+                marker.setPopupContent(`<b>医院:</b> ${marker.hospitalData.hco_nm}<br>` +
+                    `<b>FTE:</b> ${marker.hospitalData.fte}<br>` +
+                    `<b>生产力:</b> ${marker.hospitalData.productivity}<br>` +
+                    `<b>潜力:</b> ${marker.hospitalData.potential}<br>` +
+                    `<b>MR Pos:</b> ${newMrPos}`
+                );
+
+                // 重新计算并更新统计数据
+                updateMRPosStats(hospitalData);
+            }
+        }
+
+        // 添加下载功能
+        function downloadSpreadsheet() {
+            // 创建工作表
+            const ws = XLSX.utils.json_to_sheet(hospitalData);
+            
+            // 创建工作簿
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Updated Data");
+            
+            // 生成文件名（包含时间戳）
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `FFE_Analysis_${timestamp}.xlsx`;
+            
+            // 下载文件
+            XLSX.writeFile(wb, filename);
+        }
+
+        // 添加默认参数配置
+        const DEFAULT_PARAMS = {
+            fteQualificationWeight: 1.0,
+            ftePenaltyWeight: 0.02,
+            doubleLowPenaltyWeight: 0.2,
+            lowProductivityPenaltyWeight: 0.5,
+            potentialWeight: 0.5,
+            distancePenaltyWeight: 0.02,
+            radiusPenaltyWeight: 0.02,
+            cityPenaltyWeight: 0.05
+        };
+
+        // 获取当前参数值的函数
+        function getCurrentParameters() {
+            return {
+                fteQualificationWeight: parseFloat(document.getElementById('fteQualificationWeight').value),
+                ftePenaltyWeight: parseFloat(document.getElementById('ftePenaltyWeight').value),
+                doubleLowPenaltyWeight: parseFloat(document.getElementById('doubleLowPenaltyWeight').value),
+                lowProductivityPenaltyWeight: parseFloat(document.getElementById('lowProductivityPenaltyWeight').value),
+                potentialWeight: parseFloat(document.getElementById('potentialWeight').value),
+                distancePenaltyWeight: parseFloat(document.getElementById('distancePenaltyWeight').value),
+                radiusPenaltyWeight: parseFloat(document.getElementById('radiusPenaltyWeight').value),
+                cityPenaltyWeight: parseFloat(document.getElementById('cityPenaltyWeight').value)
+            };
+        }
+
+        // 重置参数函数
+        function resetParameters() {
+            Object.entries(DEFAULT_PARAMS).forEach(([id, value]) => {
+                document.getElementById(id).value = value;
+            });
+            // 重新计算统计数据
+            if (hospitalData.length > 0) {
+                updateMRPosStats(hospitalData);
+            }
+        }
+
+        // 为所有参数输入框添加变化监听器
+        function initParameterListeners() {
+            Object.keys(DEFAULT_PARAMS).forEach(id => {
+                document.getElementById(id).addEventListener('change', () => {
+                    if (hospitalData.length > 0) {
+                        updateMRPosStats(hospitalData);
+                    }
+                });
+            });
+        }
+
+        // 更新城市选择下拉框
+        function updateCitySelect(data) {
+            const citySet = new Set();
+            data.forEach(row => {
+                if (row.city) {
+                    citySet.add(row.city);
+                }
+            });
+
+            const cityArray = ['全部城市', ...Array.from(citySet).sort()];
+            initializeSearchSelect('city', cityArray, filterByCity);
+        }
+
+        // 按城市筛选
+        function filterByCity(selectedCity) {
+            selectedCity = selectedCity === '全部城市' ? '' : selectedCity;
+            
+            allMarkers.forEach(marker => {
+                const markerCity = marker.hospitalData.city;
+                if (!selectedCity || markerCity === selectedCity) {
+                    marker.setStyle({
+                        fillColor: getColorForMRPos(marker.hospitalData),
+                        color: getColorForMRPos(marker.hospitalData),
+                        fillOpacity: 1.0,
+                        opacity: 1.0
+                    });
+                } else {
+                    marker.setStyle({
+                        fillColor: '#808080',
+                        color: '#808080',
+                        fillOpacity: 0.0,
+                        opacity: 0.1
+                    });
+                }
+            });
+
+            // 添加：如果选择了特定城市，计算��显示其评分
+            if (selectedCity && selectedCity !== '全部城市') {
+                calculateSingleCityScore(selectedCity);
+            } else {
+                // 清除单个城市的评分显示
+                const singleCityScoreDiv = document.getElementById('singleCityScore');
+                if (singleCityScoreDiv) {
+                    singleCityScoreDiv.remove();
+                }
+            }
+        }
+
+        // 添加新函数：计算单个城市的评分
+        function calculateSingleCityScore(city) {
+            const params = getCurrentParameters();
+            const allStats = calculateOverallStats(hospitalData);
+            
+            // 获取该城市的医院数据
+            const cityHospitals = hospitalData.filter(h => h.city === city);
+            
+            // 计算该城市的 FTE
+            const cityFTE = cityHospitals.reduce((sum, h) => sum + (parseFloat(h.fte) || 0), 0);
+            const fteScore = (cityFTE >= CONFIG.fte_lower_bound && cityFTE <= CONFIG.fte_upper_bound) ? 1 : 0;
+            
+            // 计算该城市的生产力
+            const cityProductivity = cityHospitals.reduce((sum, h) => sum + (parseFloat(h.productivity) || 0), 0);
+            const relativeProductivity = cityProductivity / allStats.totalProductivity;
+            const productivityScore = (relativeProductivity >= 0.5 && relativeProductivity <= 1.5) ? 1 : 0;
+            
+            // 计算双低辖区得分
+            const currentYearSum = cityHospitals.reduce((sum, h) => sum + (parseFloat(h.productivity) || 0), 0);
+            const lastYearSum = cityHospitals.reduce((sum, h) => sum + (parseFloat(h.productivity_ly) || 0), 0);
+            const growthRate = lastYearSum > 0 ? currentYearSum / lastYearSum : 1;
+            const avgGrowthRate = calculateAverageGrowthRate(hospitalData);
+            const doubleLowPenalty = (relativeProductivity < 0.7 && relativeProductivity > 0.5 && growthRate < avgGrowthRate) ? 
+                -params.doubleLowPenaltyWeight : 0;
+            
+            // 计算低生产力得分
+            const lowProductivityPenalty = (relativeProductivity <= 0.5) ? -params.lowProductivityPenaltyWeight : 0;
+            
+            // 计算潜力得分
+            const cityPotential = cityHospitals.reduce((sum, h) => sum + (parseFloat(h.potential) || 0), 0);
+            const relativePotential = cityPotential / allStats.totalPotential;
+            const potentialScore = (relativePotential >= 0.5 && relativePotential <= 3.0) ? params.potentialWeight : 0;
+            
+            // 计算距离相关得分
+            const centroid = calculateCentroid(cityHospitals);
+            const mstDistance = calculateMST(cityHospitals, centroid);
+            const maxRadius = Math.max(...cityHospitals.map(h => 
+                calculateDistance(centroid.latitude, centroid.longitude, parseFloat(h.latitude), parseFloat(h.longitude))
+            ));
+            
+            const commuteDistanceScore = Math.min(40 / mstDistance, 2);
+            const commuteRadiusScore = Math.min(20 / maxRadius, 2);
+            
+            // 计算距离惩罚
+            const distancePenaltyRadius = maxRadius > 20 ? -params.radiusPenaltyWeight : 0;
+            const distancePenaltyTravel = mstDistance > 50 ? -params.distancePenaltyWeight : 0;
+            
+            // 计算 MR Pos 分布
+            const mrPosCount = new Set(cityHospitals.map(h => h['MR Pos'])).size;
+            const mrPosPenalty = mrPosCount > 1 ? -params.cityPenaltyWeight * (mrPosCount - 1) : 0;
+            
+            // 计算总分
+            const totalScore = fteScore + productivityScore + doubleLowPenalty + lowProductivityPenalty + 
+                potentialScore + commuteDistanceScore + commuteRadiusScore + 
+                distancePenaltyRadius + distancePenaltyTravel + 0 * mrPosPenalty;
+            
+            // 显示评分
+            displaySingleCityScore(city, {
+                totalScore,
+                fteScore,
+                productivityScore,
+                doubleLowPenalty,
+                lowProductivityPenalty,
+                potentialScore,
+                commuteDistanceScore,
+                commuteRadiusScore,
+                distancePenaltyRadius,
+                distancePenaltyTravel,
+                mrPosPenalty,
+                mrPosCount
+            });
+        }
+
+        // 添加新函数：显示单个城市的评分
+        function displaySingleCityScore(city, scores) {
+            // 移除已存在的评分显示
+            const existingDiv = document.getElementById('singleCityScore');
+            if (existingDiv) {
+                existingDiv.remove();
+            }
+            
+            const scoreDiv = document.createElement('div');
+            scoreDiv.id = 'singleCityScore';
+            scoreDiv.className = 'mr-pos-stats';
+            scoreDiv.innerHTML = `
+                <h4>${city} 评分详情</h4>
+                <div class="mr-pos-item" style="font-weight: bold; background-color: #f0f0f0; padding: 10px; border-radius: 4px;">
+                    <span>单项评分：</span>
+                    <span>${scores.totalScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>FTE达标分：</span>
+                    <span>${scores.fteScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>生产力达标分：</span>
+                    <span>${scores.productivityScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>双低辖区惩罚：</span>
+                    <span>${scores.doubleLowPenalty.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>低生产力惩罚：</span>
+                    <span>${scores.lowProductivityPenalty.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>潜力得分：</span>
+                    <span>${scores.potentialScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>通勤距离得分：</span>
+                    <span>${scores.commuteDistanceScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>通勤半径得分：</span>
+                    <span>${scores.commuteRadiusScore.toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>距离惩罚：</span>
+                    <span>${(scores.distancePenaltyRadius + scores.distancePenaltyTravel).toFixed(3)}</span>
+                </div>
+                <div class="mr-pos-item">
+                    <span>MR Pos 分布惩罚 (${scores.mrPosCount}个)（未被计算）：</span>
+                    <span>${scores.mrPosPenalty.toFixed(3)}</span>
+                </div>
+            `;
+            
+            // 将评分插入到 mrPosStats 的开头
+            const mrPosStats = document.getElementById('mrPosStats');
+            mrPosStats.insertBefore(scoreDiv, mrPosStats.firstChild.nextSibling);
+        }
+
+        // 修改折叠面板初始化函数，区分参数设置面板和详情面板
+        function initCollapsible() {
+            // 参数设置面板的处理
+            const paramPanel = document.querySelector(".parameters-section .collapsible");
+            if (paramPanel) {
+                paramPanel.addEventListener("click", function() {
+                    this.classList.toggle("active");
+                    const content = this.nextElementSibling;
+                    content.classList.toggle("show");
+                });
+            }
+        }
+        
+
+        // 详情面板的处理保持独立
+        function initDetailCollapsibles() {
+            document.addEventListener('click', function(e) {
+                if (e.target && e.target.classList.contains('collapsible-detail')) {
+                    const content = e.target.nextElementSibling;
+                    if (content.style.display === 'block') {
+                        content.style.display = 'none';
+                        e.target.textContent = '查看详情';
+                    } else {
+                        content.style.display = 'block';
+                        e.target.textContent = '收起详情';
+                    }
+                }
+            });
+        }
+
+        // 修改页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initCollapsible();     // 初始化参数设置面板
+            initDetailCollapsibles(); // 初始化详情面板
+        });
+
+        initMap();
+
+        // 在文件末尾添加点击事件监听器来关闭上下文菜单
+        document.addEventListener('click', function(e) {
+            if (contextMenu && !contextMenu.contains(e.target)) {
+                contextMenu.remove();
+            }
+        });
+
+        // 添加搜索选择框初始化函数
+        function initializeSearchSelect(type, options, filterCallback) {
+            const searchInput = document.getElementById(`${type}Search`);
+            const optionsContainer = document.getElementById(`${type}Options`);
+            let currentValue = options[0];
+
+            function updateOptions(searchText) {
+                const MAX_DISPLAY_OPTIONS = 100; // 最大显示100个选项
+                const filteredOptions = options
+                    .filter(option => 
+                        option.toLowerCase().includes(searchText.toLowerCase())
+                    )
+                    .slice(0, MAX_DISPLAY_OPTIONS); // 限制显示数量
+
+                optionsContainer.innerHTML = '';
+                
+                if (filteredOptions.length === MAX_DISPLAY_OPTIONS) {
+                    const notice = document.createElement('div');
+                    notice.className = 'option-item';
+                    notice.style.color = '#666';
+                    notice.textContent = '请输入更多字符以缩小搜索范围...';
+                    optionsContainer.appendChild(notice);
+                }
+
+                filteredOptions.forEach(option => {
+                    const div = document.createElement('div');
+                    div.className = 'option-item';
+                    div.textContent = option;
+                    div.onclick = () => {
+                        currentValue = option;
+                        searchInput.value = option;
+                        optionsContainer.style.display = 'none';
+                        filterCallback(option);
+                    };
+                    optionsContainer.appendChild(div);
+                });
+
+                optionsContainer.style.display = filteredOptions.length ? 'block' : 'none';
+            }
+
+            searchInput.value = currentValue;
+            searchInput.addEventListener('focus', () => {
+                updateOptions(searchInput.value);
+            });
+
+            searchInput.addEventListener('input', (e) => {
+                updateOptions(e.target.value);
+            });
+
+            // 点击外部关闭选项
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest(`#${type}FilterContainer`)) {
+                    optionsContainer.style.display = 'none';
+                }
+            });
+        }
+
+        // 添加医院选择框更新函数
+        function updateHospitalSelect(data) {
+            const hospitalSet = new Set();
+            data.forEach(row => {
+                if (row.hco_nm) {
+                    hospitalSet.add(row.hco_nm);
+                }
+            });
+
+            const hospitalArray = ['全部医院', ...Array.from(hospitalSet).sort()];
+            initializeSearchSelect('hospital', hospitalArray, filterByHospital);
+        }
+
+        // 修正 filterByHospital 函数
+        function filterByHospital(selectedHospital) {
+            if (selectedHospital === '全部医院') {
+                // 重置所有医院的显示
+                allMarkers.forEach(marker => {
+                    marker.setStyle({
+                        fillColor: getColorForMRPos(marker.hospitalData),
+                        color: getColorForMRPos(marker.hospitalData),
+                        fillOpacity: 1.0,
+                        opacity: 1.0,
+                        weight: 2
+                    });
+                });
+                return;
+            }
+
+            // 找到选中医院的 MR Pos
+            const selectedHospitalData = hospitalData.find(h => h.hco_nm === selectedHospital);
+            if (!selectedHospitalData) return;
+
+            const selectedMRPos = selectedHospitalData['MR Pos'];
+
+            // 更新所有标记的样式
+            allMarkers.forEach(marker => {
+                if (marker.hospitalData['MR Pos'] === selectedMRPos) {
+                    // 同一 MR Pos 的医院高亮显示
+                    marker.setStyle({
+                        fillColor: getColorForMRPos(marker.hospitalData),
+                        color: getColorForMRPos(marker.hospitalData),
+                        fillOpacity: 1.0,
+                        opacity: 1.0,
+                        weight: marker.hospitalData.hco_nm === selectedHospital ? 4 : 2 // 选中的医院边框更粗
+                    });
+
+                    // 如果是选中的医院，打开弹窗
+                    if (marker.hospitalData.hco_nm === selectedHospital) {
+                        marker.openPopup();
+                    }
+                } else {
+                    // 其他医院淡化显示
+                    marker.setStyle({
+                        fillColor: '#808080',
+                        color: '#808080',
+                        fillOpacity: 0.0,
+                        opacity: 0.1,
+                        weight: 1
+                    });
+                }
+            });
+
+            // 调整地图视图以显示所有相关医院
+            const relevantMarkers = allMarkers.filter(marker => 
+                marker.hospitalData['MR Pos'] === selectedMRPos
+            );
+            if (relevantMarkers.length > 0) {
+                const bounds = L.featureGroup(relevantMarkers).getBounds();
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+
+        // 添加新的函数来初始化城市到Territory的选择框
+        function updateCityToTerritorySelect(data) {
+            const citySet = new Set();
+            data.forEach(row => {
+                if (row.city) {
+                    citySet.add(row.city);
+                }
+            });
+
+            const cityArray = ['全部城市', ...Array.from(citySet).sort()];
+            initializeSearchSelect('cityToTerritory', cityArray, filterByCityToTerritory);
+        }
+
+        // 添加新的筛选函数
+        function filterByCityToTerritory(selectedCity) {
+            if (selectedCity === '全部城市') {
+                // 重置所有标记的样式
+                allMarkers.forEach(marker => {
+                    marker.setStyle({
+                        fillColor: getColorForMRPos(marker.hospitalData),
+                        color: getColorForMRPos(marker.hospitalData),
+                        fillOpacity: 1.0,
+                        opacity: 1.0
+                    });
+                });
+                return;
+            }
+
+            // 找到选中城市的所有医院对应的所有 MR Pos
+            const selectedCityHospitals = hospitalData.filter(h => h.city === selectedCity);
+            const relatedMRPosSet = new Set(selectedCityHospitals.map(h => h['MR Pos']));
+
+            // 更新所有标记的样式
+            allMarkers.forEach(marker => {
+                if (relatedMRPosSet.has(marker.hospitalData['MR Pos'])) {
+                    // 相关 MR Pos 的医院高亮显示
+                    marker.setStyle({
+                        fillColor: getColorForMRPos(marker.hospitalData),
+                        color: getColorForMRPos(marker.hospitalData),
+                        fillOpacity: 1.0,
+                        opacity: 1.0
+                    });
+                } else {
+                    // 其他医院淡化显示
+                    marker.setStyle({
+                        fillColor: '#808080',
+                        color: '#808080',
+                        fillOpacity: 0.0,
+                        opacity: 0.1
+                    });
+                }
+            });
+
+            // 调整地图视图以显示所有相关医院
+            const relevantMarkers = allMarkers.filter(marker => 
+                relatedMRPosSet.has(marker.hospitalData['MR Pos'])
+            );
+            if (relevantMarkers.length > 0) {
+                const bounds = L.featureGroup(relevantMarkers).getBounds();
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+
+        // 添加凸包算法
+        function getConvexHull(points) {
+            // Graham Scan算法实现凸包
+            function cross(o, a, b) {
+                return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+            }
+            
+            if (points.length <= 3) return points;
+            
+            // 找到最下方的点
+            let bottomPoint = points[0];
+            points.forEach(point => {
+                if (point.y < bottomPoint.y || (point.y === bottomPoint.y && point.x < bottomPoint.x)) {
+                    bottomPoint = point;
+                }
+            });
+            
+            // 按极角排序
+            points.sort((a, b) => {
+                const angle = Math.atan2(a.y - bottomPoint.y, a.x - bottomPoint.x) -
+                             Math.atan2(b.y - bottomPoint.y, b.x - bottomPoint.x);
+                return angle || ((a.x - bottomPoint.x) * (a.x - bottomPoint.x) + 
+                                (a.y - bottomPoint.y) * (a.y - bottomPoint.y)) -
+                               ((b.x - bottomPoint.x) * (b.x - bottomPoint.x) + 
+                                (b.y - bottomPoint.y) * (b.y - bottomPoint.y));
+            });
+            
+            // Graham Scan
+            const stack = [points[0], points[1]];
+            for (let i = 2; i < points.length; i++) {
+                while (stack.length > 1 && cross(stack[stack.length - 2], 
+                       stack[stack.length - 1], points[i]) <= 0) {
+                    stack.pop();
+                }
+                stack.push(points[i]);
+            }
+            
+            return stack;
+        }
+
+        function toggleConvexHull() {
+            const showHull = document.getElementById('showConvexHull').checked;
+            
+            // 清除现有的凸包图层
+            convexHullLayers.forEach(layer => {
+                map.removeLayer(layer);
+            });
+            convexHullLayers.clear();
+            
+            if (showHull) {
+                // 按MR Pos分组
+                const mrPosGroups = new Map();
+                allMarkers.forEach(marker => {
+                    const mrPos = marker.hospitalData['MR Pos'];
+                    if (!mrPosGroups.has(mrPos)) {
+                        mrPosGroups.set(mrPos, []);
+                    }
+                    mrPosGroups.get(mrPos).push({
+                        x: marker.getLatLng().lat,
+                        y: marker.getLatLng().lng
+                    });
+                });
+                
+                // 为每个MR Pos创建凸包
+                mrPosGroups.forEach((points, mrPos) => {
+                    const hullPoints = getConvexHull(points);
+                    if (hullPoints.length >= 3) {
+                        const polygon = L.polygon(hullPoints.map(p => [p.x, p.y]), {
+                            color: '#3388ff',
+                            weight: 2,
+                            fillColor: '#3388ff',
+                            fillOpacity: 0.1
+                        });
+                        polygon.addTo(map);
+                        convexHullLayers.set(mrPos, polygon);
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
