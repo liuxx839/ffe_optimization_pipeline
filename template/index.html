@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>区域分配优化</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        /* 圣诞主题样式 */
+        :root {
+            --christmas-red: #D42426;
+            --christmas-green: #2F5233;
+            --snow-white: #fff;
+            --holly-green: #146B3A;
+        }
+        
+        /* 雪花动画 */
+        .snowflake {
+            position: fixed;
+            color: var(--snow-white);
+            font-size: 1em;
+            font-family: Arial;
+            text-shadow: 0 0 1px #000;
+            user-select: none;
+            z-index: 1000;
+            animation: fall 10s linear infinite;
+        }
+        
+        @keyframes fall {
+            0% { transform: translateY(-100vh) rotate(0deg); }
+            100% { transform: translateY(100vh) rotate(360deg); }
+        }
+
+        /* 圣诞主题开关 */
+        .theme-switch {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+        }
+
+        /* 圣诞主题样式 */
+        body.christmas-theme {
+            background-color: #f8f9fa;
+            background-image: linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(255,255,255,0.9)),
+                            url('data:image/svg+xml,...'); /* 添加subtle的圣诞图案背景 */
+        }
+
+        .christmas-theme .card {
+            border-color: var(--christmas-green);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .christmas-theme .card-header {
+            background-color: var(--holly-green);
+            color: var(--snow-white);
+        }
+
+        .christmas-theme .btn-primary {
+            background-color: var(--christmas-red);
+            border-color: var(--christmas-red);
+        }
+
+        .christmas-theme .btn-success {
+            background-color: var(--christmas-green);
+            border-color: var(--christmas-green);
+        }
+
+        /* 驯鹿进度条样式 */
+        .christmas-theme .progress {
+            height: 60px;
+            background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 60%, #fff 60%, #fff 100%);
+            border-radius: 30px;
+            position: relative;
+            overflow: visible;
+        }
+
+        .christmas-theme .progress-bar {
+            background: none;
+            position: relative;
+        }
+
+        .christmas-theme .progress-bar::after {
+            content: "🎅";
+            font-size: 40px;
+            position: absolute;
+            right: -20px;
+            top: -5px;
+            animation: bounce 0.5s infinite alternate;
+        }
+
+        .christmas-theme .progress::before {
+            content: "🦌";
+            font-size: 40px;
+            position: absolute;
+            left: -30px;
+            top: -5px;
+            transform: scaleX(-1);
+        }
+
+        @keyframes bounce {
+            from {
+                transform: translateY(0px);
+            }
+            to {
+                transform: translateY(-3px);
+            }
+        }
+
+        /* 进度条轨道装饰 */
+        .christmas-theme .progress::after {
+            content: "";
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: repeating-linear-gradient(
+                to right,
+                var(--christmas-red) 0px,
+                var(--christmas-red) 10px,
+                transparent 10px,
+                transparent 20px
+            );
+            opacity: 0.5;
+        }
+
+        /* 进度百分比样式 */
+        #progressPercentage {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--christmas-red);
+            font-weight: bold;
+            font-size: 1.2em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+
+        .container { max-width: 1200px; padding-top: 2rem; }
+        .preview-table { max-height: 400px; overflow-y: auto; }
+        #status { margin-top: 1rem; }
+
+        .countdown-container {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            border: 2px solid var(--christmas-red);
+        }
+
+        .christmas-theme .countdown-container {
+            background: var(--holly-green);
+            color: var(--snow-white);
+        }
+
+        .countdown-item {
+            display: inline-block;
+            margin: 0 10px;
+            text-align: center;
+        }
+
+        .countdown-number {
+            font-size: 24px;
+            font-weight: bold;
+            display: block;
+        }
+
+        .countdown-label {
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .firework {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .firework-particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            animation: explode 1.5s ease-out forwards;
+            box-shadow: 0 0 10px 2px currentColor;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            40% {
+                opacity: 0.8;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0.1);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="christmas-theme">
+    <!-- 主题切换开关 -->
+    <div class="theme-switch form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="themeSwitch" checked>
+        <label class="form-check-label" for="themeSwitch">🎄 圣诞模式</label>
+    </div>
+
+    <div class="container">
+        <h1 class="mb-4">🎄 区域分配优化工具 🎅</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">数据上传</div>
+                    <div class="card-body">
+                        <form id="uploadForm">
+                            <div class="mb-3">
+                                <label class="form-label">选择Excel文件：</label>
+                                <input type="file" class="form-control" name="file" accept=".xlsx,.xls" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">上传文件</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header" data-bs-toggle="collapse" data-bs-target="#firstRoundCollapse" style="cursor: pointer;">
+                        第一轮优化参数设置 <i class="float-end">▼</i>
+                    </div>
+                    <div id="firstRoundCollapse" class="collapse">
+                        <div class="card-body">
+                            <form id="optimizeForm">
+                                <div class="mb-3">
+                                    <label class="form-label">FTE下限：</label>
+                                    <input type="number" class="form-control" name="fte_lower" value="0.85" step="0.01">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">FTE上限(deprecated)：</label>
+                                    <input type="number" class="form-control" name="fte_upper" value="1.15" step="0.01">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">FTE权重：</label>
+                                    <input type="number" class="form-control" name="lambda_fte" value="4.0" step="0.1">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">距离权重：</label>
+                                    <input type="number" class="form-control" name="lambda_dist" value="1.0" step="0.1">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">时间限制（秒）：</label>
+                                    <input type="number" class="form-control" name="time_limit" value="30">
+                                </div>
+                                <button type="submit" class="btn btn-success">运行第一轮优化</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header" data-bs-toggle="collapse" data-bs-target="#secondRoundCollapse" style="cursor: pointer;">
+                        第二轮优化参数设置 <i class="float-end">▼</i>
+                    </div>
+                    <div id="secondRoundCollapse" class="collapse">
+                        <div class="card-body">
+                            <form id="secondRoundForm">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">距离阈值(deprecated)：</label>
+                                            <input type="number" class="form-control" name="distance_threshold" value="0.8" step="0.1">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">FTE权重：</label>
+                                            <input type="number" class="form-control" name="fte_weight" value="8" step="0.1">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">生产力权重：</label>
+                                            <input type="number" class="form-control" name="prod_weight" value="5" step="0.1">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">潜力权重：</label>
+                                            <input type="number" class="form-control" name="poten_weight" value="1" step="0.1">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">时间限制（秒）：</label>
+                                            <input type="number" class="form-control" name="time_limit_step2" value="5" >
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">增长权重：</label>
+                                            <input type="number" class="form-control" name="growth_weight" value="1" step="0.1">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">区域权重：</label>
+                                            <input type="number" class="form-control" name="terri_weight" value="50" step="0.1">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">目标FTE：</label>
+                                            <input type="number" class="form-control" name="target_fte" value="1" step="0.1">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">增长率阈值：</label>
+                                            <input type="number" class="form-control" name="growth_rate_threshold" value="1.18" step="0.01">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">平均医院数量：</label>
+                                            <input type="number" class="form-control" name="hco_count_avg" value="43.87" step="0.01">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">平均生产力：</label>
+                                            <input type="number" class="form-control" name="avg_productivity" value="9.56" step="0.01">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">平均潜力：</label>
+                                            <input type="number" class="form-control" name="avg_potential" value="334.38" step="0.01">
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary" disabled>运行第二轮优化</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header" data-bs-toggle="collapse" data-bs-target="#thirdRoundCollapse" style="cursor: pointer;">
+                        第三轮优化参数设置 <i class="float-end">▼</i>
+                    </div>
+                    <div id="thirdRoundCollapse" class="collapse">
+                        <div class="card-body">
+                            <form id="thirdRoundForm">
+                                <div class="mb-3">
+                                    <label class="form-label">建议区域数量：</label>
+                                    <input type="number" class="form-control" name="n_territories_suggested" value="25" min="1" step="1">
+                                </div>
+                                <button type="submit" class="btn btn-success" disabled>运行第三轮优化</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header" data-bs-toggle="collapse" data-bs-target="#finalDiagnosisCollapse" style="cursor: pointer;">
+                        最终诊断 <i class="float-end">▼</i>
+                    </div>
+                    <div id="finalDiagnosisCollapse" class="collapse">
+                        <div class="card-body">
+                            <div id="finalDiagnosticWarning" class="alert alert-info" style="display: none;"></div>
+                            <button id="runFinalDiagnosis" class="btn btn-primary" disabled>运行最终诊断</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">数据预览</div>
+                    <div class="card-body">
+                        <div class="preview-table">
+                            <table class="table" id="previewTable">
+                                <thead>
+                                    <tr><th>等待数据上传...</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">优化过程</div>
+                    <div class="card-body">
+                        <div id="progressContainer" style="display: none;">
+                            <p>优化进度：</p>
+                            <div class="progress">
+                                <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuemin="0" aria-valuemax="100">
+                                    <span id="progressPercentage">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="finalStatus" class="alert mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+                
+                <div id="status" class="alert" style="display: none;"></div>
+
+                <div class="card mt-4">
+                    <div class="card-header">优化诊断</div>
+                    <div class="card-body">
+                        <div id="diagnosticWarning" class="alert alert-warning" style="display: none;"></div>
+                        <div class="table-responsive">
+                            <table class="table table-sm" id="overlapTable">
+                                <thead>
+                                    <tr>
+                                        <th>区域1</th>
+                                        <th>区域2</th>
+                                        <th>重叠面积</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        
+                        <div id="fitnessHistoryTable" class="table-responsive mt-4">
+                            <h5>优化历史记录</h5>
+                            <table class="table table-sm table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>次数</th>
+                                        <th>总分</th>
+                                        <th>工作量得分</th>
+                                        <th>工作量惩罚</th>
+                                        <th>工作量达标率</th>
+                                        <th>生产力得分</th>
+                                        <th>双低惩罚</th>
+                                        <th>低产能惩罚</th>
+                                        <th>潜力得分</th>
+                                        <th>半径距离得分</th>
+                                        <th>行程距离得分</th>
+                                        <th>半径惩罚</th>
+                                        <th>行程惩罚</th>
+                                        <th>城市惩罚</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="14" class="text-center">暂无数据</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="countdown-container">
+        <div class="countdown-item">
+            <span id="countdown-days" class="countdown-number">00</span>
+            <span class="countdown-label">天</span>
+        </div>
+        <div class="countdown-item">
+            <span id="countdown-hours" class="countdown-number">00</span>
+            <span class="countdown-label">时</span>
+        </div>
+        <div class="countdown-item">
+            <span id="countdown-minutes" class="countdown-number">00</span>
+            <span class="countdown-label">分</span>
+        </div>
+        <div class="countdown-item">
+            <span id="countdown-seconds" class="countdown-number">00</span>
+            <span class="countdown-label">秒</span>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#uploadForm').on('submit', function(e) {
+                e.preventDefault();
+                var formData = new FormData(this);
+                $.ajax({
+                    url: '/upload',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        $('#status').removeClass().addClass('alert alert-success')
+                            .text('文件上传成功！').show();
+                        $('button[type="submit"]').prop('disabled', false);
+                        $('#secondRoundForm button[type="submit"]').prop('disabled', false);
+                        $('#thirdRoundForm button[type="submit"]').prop('disabled', false);
+                        loadPreview();
+                        updateFileList();
+                    },
+                    error: function(xhr) {
+                        $('#status').removeClass().addClass('alert alert-danger')
+                            .text('上传失败：' + xhr.responseJSON.error).show();
+                    }
+                });
+            });
+
+            $('#optimizeForm').on('submit', function(e) {
+                e.preventDefault();
+                startProgress();
+                var formData = new FormData(this);
+                $.ajax({
+                    url: '/optimize',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    xhrFields: {
+                        responseType: 'blob'
+                    },
+                    success: function(blob, status, xhr) {
+                        const filename = xhr.getResponseHeader('Content-Disposition')?.split('filename=')[1] || 'optimization_results_dbcluster.xlsx';
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        
+                        $.get('/get_diagnostic', function(response) {
+                            console.log('Complete diagnostic data:', response); // 用于调试
+                            
+                            // 处理第一步的诊断信息
+                            if (response.diagnostic_info && response.diagnostic_info.warning_msg) {
+                                $('#diagnosticWarning').text(response.diagnostic_info.warning_msg).show();
+                            }
+                            
+                            // 处理最终诊断信息
+                            if (response.final_diagnostic_info) {
+                                // // 显示警告信息
+                                // if (response.final_diagnostic_info.warning) {
+                                //     $('#finalDiagnosticWarning').text(response.final_diagnostic_info.warning).show();
+                                // }
+                                
+                                // 更新历史记录表格
+                                if (response.final_diagnostic_info.history && response.final_diagnostic_info.history.length > 0) {
+                                    var tbody = '';
+                                    response.final_diagnostic_info.history.forEach(function(record) {
+                                        tbody += `<tr>
+                                            <td>${record['次数']}</td>
+                                            <td>${parseFloat(record['总分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['工作量得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['工作量惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['工作量达标率']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['生产力得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['双低惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['低产能惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['潜力得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['半径距离得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['行程距离得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['半径惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['行程惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['城市惩罚']).toFixed(3)}</td>
+                                        </tr>`;
+                                    });
+                                    $('#fitnessHistoryTable tbody').html(tbody);
+                                    $('#fitnessHistoryTable').show();
+                                }
+                            }
+                        });
+                        
+                        $('#status').removeClass().addClass('alert alert-success')
+                            .text('第一轮优化完成！结果已下载。').show();
+                        updateFileList();
+                    },
+                    error: function(xhr) {
+                        $('#finalStatus').removeClass().addClass('alert alert-danger')
+                            .text('优化失败：' + xhr.responseJSON.error).show();
+                    }
+                });
+            });
+
+            $('#secondRoundForm').on('submit', function(e) {
+                e.preventDefault();
+                $('#status').removeClass().addClass('alert alert-info')
+                    .text('正在进行第二轮优化...').show();
+                
+                var formData = new FormData(this);
+                
+                $.ajax({
+                    url: '/optimize_second_round',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    xhrFields: {
+                        responseType: 'blob'
+                    },
+                    success: function(blob) {
+                        var url = window.URL.createObjectURL(blob);
+                        var a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'second_round_exploration.xlsx';
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        $('#status').removeClass().addClass('alert alert-success')
+                            .text('第二轮优化完成！结果已下载。').show();
+                        updateFileList();
+                    },
+                    error: function(xhr) {
+                        $('#status').removeClass().addClass('alert alert-danger')
+                            .text('第二轮优化失败：' + (xhr.responseJSON ? xhr.responseJSON.error : '未知错误')).show();
+                    }
+                });
+            });
+
+            $('#thirdRoundForm').on('submit', function(e) {
+                e.preventDefault();
+                $('#status').removeClass().addClass('alert alert-info')
+                    .text('正在进行第三轮优化...').show();
+                
+                var formData = new FormData(this);
+                var n_territories = formData.get('n_territories_suggested');
+                
+                $.ajax({
+                    url: '/optimize_third_round',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    xhrFields: {
+                        responseType: 'blob'
+                    },
+                    success: function(blob, status, xhr) {
+                        const filename = xhr.getResponseHeader('Content-Disposition')?.split('filename=')[1] || 
+                                       `final_optimization_n${n_territories}_gurobi_region_divided_for_plot.xlsx`;
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        $('#status').removeClass().addClass('alert alert-success')
+                            .text('第三轮优化完成！结果已下载。').show();
+                        updateFileList();
+                        $('#runFinalDiagnosis').prop('disabled', false);
+                    },
+                    error: function(xhr) {
+                        $('#status').removeClass().addClass('alert alert-danger')
+                            .text('第三轮优化失败：' + (xhr.responseJSON ? xhr.responseJSON.error : '未知错误')).show();
+                    }
+                });
+            });
+
+            $('#runFinalDiagnosis').on('click', function(e) {
+                e.preventDefault();
+                $.ajax({
+                    url: '/final_diagnosis',
+                    type: 'POST',
+                    xhrFields: {
+                        responseType: 'blob'
+                    },
+                    success: function(blob, status, xhr) {
+                        // 下载诊断文件
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'final_diagnosis.xlsx';
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        
+                        // 获取诊断信息并更新UI
+                        $.get('/get_diagnostic', function(response) {
+                            console.log('Complete diagnostic data:', response); // 用于调试
+                            
+                            // 处理第一步的诊断信息
+                            if (response.diagnostic_info && response.diagnostic_info.warning_msg) {
+                                $('#diagnosticWarning').text(response.diagnostic_info.warning_msg).show();
+                            }
+                            
+                            // 处理最终诊断信息
+                            if (response.final_diagnostic_info) {
+                                // 显示警告信息
+                                if (response.final_diagnostic_info.warning) {
+                                    $('#finalDiagnosticWarning').text(response.final_diagnostic_info.warning).show();
+                                }
+                                
+                                // 更新历史记录表格
+                                if (response.final_diagnostic_info.history && response.final_diagnostic_info.history.length > 0) {
+                                    var tbody = '';
+                                    response.final_diagnostic_info.history.forEach(function(record) {
+                                        tbody += `<tr>
+                                            <td>${record['次数']}</td>
+                                            <td>${parseFloat(record['总分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['工作量得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['工作量惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['工作量达标率']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['生产力得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['双低惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['低产能惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['潜力得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['半径距离得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['行程距离得分']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['半径惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['行程惩罚']).toFixed(3)}</td>
+                                            <td>${parseFloat(record['城市惩罚']).toFixed(3)}</td>
+                                        </tr>`;
+                                    });
+                                    $('#fitnessHistoryTable tbody').html(tbody);
+                                    $('#fitnessHistoryTable').show();
+                                }
+                            }
+                        });
+                    },
+                    error: function(xhr) {
+                        alert('诊断失败：' + (xhr.responseJSON ? xhr.responseJSON.error : '未知错误'));
+                    }
+                }, 1000); // 等待1秒后获取诊断信息
+            });
+
+            function startProgress() {
+                $('#progressContainer').show();
+                const eventSource = new EventSource('/progress');
+                eventSource.onmessage = function(event) {
+                    const progress = parseInt(event.data);
+                    $('#progressPercentage').text(progress + '%');
+                    $('#progressBar').css('width', progress + '%');
+                    if (progress === 100) {
+                        eventSource.close();
+                        $('#finalStatus').removeClass().addClass('alert alert-success').text('优化完成！').show();
+                    }
+                };
+                eventSource.onerror = function() {
+                    eventSource.close();
+                    $('#finalStatus').removeClass().addClass('alert alert-danger').text('优化失败！请重试。').show();
+                };
+            }
+
+            function loadPreview() {
+                $.get('/preview', function(response) {
+                    var table = $('#previewTable');
+                    var thead = '<tr>';
+                    response.columns.forEach(function(col) {
+                        thead += '<th>' + col + '</th>';
+                    });
+                    thead += '</tr>';
+                    
+                    var tbody = '';
+                    response.data.forEach(function(row) {
+                        tbody += '<tr>';
+                        response.columns.forEach(function(col) {
+                            tbody += '<td>' + row[col] + '</td>';
+                        });
+                        tbody += '</tr>';
+                    });
+                    
+                    table.find('thead').html(thead);
+                    table.find('tbody').html(tbody);
+                });
+            }
+
+            function updateFileList() {
+                $.get('/list_files', function(response) {
+                    if (response.files) {
+                        var tbody = '';
+                        response.files.forEach(function(file) {
+                            var size = (file.size / 1024).toFixed(2) + ' KB';
+                            var date = new Date(file.modified * 1000).toLocaleString();
+                            tbody += `
+                                <tr>
+                                    <td>${file.name}</td>
+                                    <td>${size}</td>
+                                    <td>${date}</td>
+                                    <td>
+                                        <a href="/download/${file.name}" class="btn btn-sm btn-primary">下载</a>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        $('#fileListBody').html(tbody);
+                    }
+                });
+            }
+
+            updateFileList();
+
+            // 雪花效果
+            function createSnowflake() {
+                const snowflake = document.createElement('div');
+                snowflake.classList.add('snowflake');
+                // 创建圣诞相关emoji数组并随机选择一个
+                const christmasEmojis = ['❄', '🎄', '🎅', '⛄', '🎁', '🦌', '🔔', '✨'];
+                snowflake.innerHTML = christmasEmojis[Math.floor(Math.random() * christmasEmojis.length)];
+                snowflake.style.left = Math.random() * 100 + 'vw';
+                snowflake.style.animationDuration = Math.random() * 3 + 7 + 's';
+                snowflake.style.opacity = Math.random();
+                document.body.appendChild(snowflake);
+
+                setTimeout(() => {
+                    snowflake.remove();
+                }, 10000);
+            }
+
+            // 添加一个变量来存储定时器ID
+            let snowflakeInterval;
+
+            // 主题切换功能
+            $('#themeSwitch').change(function() {
+                $('body').toggleClass('christmas-theme');
+                if($(this).is(':checked')) {
+                    // 开启雪花效果
+                    snowflakeInterval = setInterval(createSnowflake, 300);
+                } else {
+                    // 清除所有雪花和定时器
+                    $('.snowflake').remove();
+                    clearInterval(snowflakeInterval);
+                }
+            });
+
+            // 默认开启雪花效果
+            snowflakeInterval = setInterval(createSnowflake, 300);
+
+            function updateCountdown() {
+                const targetDate = new Date('2025-01-01T00:00:00');
+                const now = new Date();
+                const diff = targetDate - now;
+
+                if (diff > 0) {
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                    $('#countdown-days').text(String(days).padStart(2, '0'));
+                    $('#countdown-hours').text(String(hours).padStart(2, '0'));
+                    $('#countdown-minutes').text(String(minutes).padStart(2, '0'));
+                    $('#countdown-seconds').text(String(seconds).padStart(2, '0'));
+                }
+            }
+
+            // 每秒更新倒计时
+            setInterval(updateCountdown, 1000);
+            updateCountdown(); // 立即执行一次
+
+            function createFirework() {
+                // 随机选择屏幕上的发射点
+                const startX = Math.random() * window.innerWidth;
+                const startY = window.innerHeight;
+                
+                // 随机选择爆炸点（在屏幕上半部分）
+                const explosionX = Math.random() * window.innerWidth;
+                const explosionY = Math.random() * (window.innerHeight * 0.5);
+
+                // 创建烟花容器
+                const firework = document.createElement('div');
+                firework.className = 'firework';
+                firework.style.left = startX + 'px';
+                firework.style.top = startY + 'px';
+                document.body.appendChild(firework);
+
+                // 烟花上升动画
+                const riseAnimation = firework.animate([
+                    { transform: `translate(0, 0)` },
+                    { transform: `translate(${explosionX - startX}px, ${explosionY - startY}px)` }
+                ], {
+                    duration: 1000,
+                    easing: 'ease-out'
+                });
+
+                // 烟花爆炸
+                riseAnimation.onfinish = () => {
+                    firework.style.left = explosionX + 'px';
+                    firework.style.top = explosionY + 'px';
+
+                    // 创建爆炸粒子
+                    const particleCount = 80; // 增加粒子数量
+                    const colors = [
+                        '#ff0000', '#ffd700', '#ff1493', '#00ff00', '#00ffff', 
+                        '#ff4500', '#ff69b4', '#7fff00', '#1e90ff', '#ff00ff'
+                    ];
+
+                    for (let i = 0; i < particleCount; i++) {
+                        const particle = document.createElement('div');
+                        particle.className = 'firework-particle';
+                        
+                        // 随机角度和距离
+                        const angle = (Math.PI * 2 * i) / particleCount + (Math.random() * 0.5);
+                        const velocity = 200 + Math.random() * 200;
+                        const tx = Math.cos(angle) * velocity;
+                        const ty = Math.sin(angle) * velocity;
+                        
+                        // 随机颜色
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        particle.style.backgroundColor = color;
+                        particle.style.color = color; // 用于发光效果
+                        
+                        // 设置运动轨迹
+                        particle.style.setProperty('--tx', tx + 'px');
+                        particle.style.setProperty('--ty', ty + 'px');
+                        
+                        firework.appendChild(particle);
+                    }
+
+                    // 清理烟花
+                    setTimeout(() => {
+                        firework.remove();
+                    }, 1500);
+                };
+            }
+
+            function startFireworks() {
+                // 在屏幕上随机位置发射多个烟花
+                for (let i = 0; i < 5; i++) {
+                    setTimeout(() => {
+                        createFirework();
+                    }, i * 300); // 每隔300ms发射一个烟花
+                }
+            }
+
+            // 点击倒计时触发烟花
+            $('.countdown-container').on('click', function() {
+                // 连续发射3轮烟花
+                for (let round = 0; round < 3; round++) {
+                    setTimeout(() => {
+                        startFireworks();
+                    }, round * 1500);
+                }
+            });
+
+            // 添加鼠标悬停效果
+            $('.countdown-container').css('cursor', 'pointer').hover(
+                function() {
+                    $(this).css('transform', 'scale(1.05)');
+                },
+                function() {
+                    $(this).css('transform', 'scale(1)');
+                }
+            );
+
+            // 添加过渡效果
+            $('.countdown-container').css('transition', 'transform 0.3s ease');
+        });
+    </script>
+   
+      <!-- Chatbot 嵌入开始 -->
+<script>
+    // 配置 Chatbot
+    window.difyChatbotConfig = {
+      token: 'ntCt1l2Yz8UshrJ6'
+    };
+  </script>
+  <script src="./embed.min.js" id="ntCt1l2Yz8UshrJ6" defer></script>
+  <style>
+    #dify-chatbot-bubble-button {
+      background-color: #7A00E6 !important;
+      width: 80px; /* 调整图标的宽度 */
+      height: 80px; /* 调整图标的高度 */
+      font-size: 80px; /* 调整图标的字体大小 */
+    }
+    #dify-chatbot-bubble-window {
+      width: 40rem !important;
+      height: 60rem !important;
+    }
+  </style>
+  <!-- Chatbot 嵌入结束 -->
+  
+</body>
+</html>
